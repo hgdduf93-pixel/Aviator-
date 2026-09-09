@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aviator Live - Phone Verify</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Aviator Live - Verified Auth</title>
   <script src="/socket.io/socket.io.js"></script>
-  
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; }
     body { background-color: #0c0f17; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 8px; }
     .app-container { width: 100%; max-width: 950px; background: #121622; border: 1px solid #232a3d; border-radius: 16px; padding: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.8); position: relative; }
+    
     .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
     .title { font-size: 22px; font-weight: 900; font-style: italic; color: #ff2b44; letter-spacing: 1px; }
     .user-info-group { display: flex; align-items: center; gap: 8px; }
@@ -21,16 +21,19 @@
     .wallet { background: #1a2130; border: 1px solid #2c3852; padding: 6px 14px; border-radius: 20px; font-weight: 700; color: #2ecc71; font-size: 14px; text-align: right; }
     .user-phone-label { font-size: 11px; color: #8c9cb3; display: block; line-height: 1; margin-bottom: 3px; }
     .logout-btn { background: #232c40; border: none; color: #ff5252; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; }
+
     .history-row { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 10px; scrollbar-width: none; }
     .history-row::-webkit-scrollbar { display: none; }
     .history-pill { padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; background: #171d2b; color: #5ea8f5; border: 1px solid #24314c; white-space: nowrap; }
     .history-pill.top { color: #c950e8; border-color: #8b349b; }
+
     .stage { position: relative; width: 100%; height: 330px; background: radial-gradient(circle at 10% 90%, #20111f 0%, #090c13 75%); border-radius: 12px; overflow: hidden; border: 1px solid #1f2738; }
     canvas { width: 100%; height: 100%; display: block; }
     .center-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; z-index: 5; }
     .current-mult { font-size: 58px; font-weight: 900; line-height: 1; text-shadow: 0 4px 18px rgba(0,0,0,0.8); }
     .status-note { font-size: 13px; font-weight: 700; letter-spacing: 2px; color: #78859b; margin-top: 6px; }
     .crash-red { color: #ff2b44 !important; }
+
     .bet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
     @media (max-width: 650px) { .bet-grid { grid-template-columns: 1fr; } .stage { height: 250px; } .current-mult { font-size: 42px; } }
     .card { background: #161b27; border: 1px solid #232c40; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
@@ -54,8 +57,32 @@
     .live-row.win { color: #2ecc71; }
     @keyframes pulse { 0% { box-shadow: 0 0 5px rgba(243, 156, 18, 0.4); } 100% { box-shadow: 0 0 15px rgba(243, 156, 18, 0.85); } }
 
+    /* REAL SMS POPUP BANNER */
+    .sms-banner {
+      position: fixed;
+      top: -120px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 92%;
+      max-width: 420px;
+      background: #182030;
+      border: 1px solid #38ef7d;
+      border-radius: 14px;
+      padding: 14px 18px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.9);
+      z-index: 10000;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .sms-banner.show { top: 20px; }
+    .sms-icon { font-size: 28px; }
+    .sms-content h4 { font-size: 13px; color: #38ef7d; font-weight: 800; }
+    .sms-content p { font-size: 13px; color: #fff; margin-top: 3px; font-weight: bold; }
+
     /* AUTH MODAL */
-    .auth-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 13, 20, 0.95); backdrop-filter: blur(8px); z-index: 100; display: flex; justify-content: center; align-items: center; border-radius: 16px; }
+    .auth-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 13, 20, 0.97); backdrop-filter: blur(8px); z-index: 100; display: flex; justify-content: center; align-items: center; border-radius: 16px; }
     .auth-card { width: 90%; max-width: 360px; background: #161b29; border: 1px solid #2b354d; border-radius: 16px; padding: 24px 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.8); text-align: center; }
     .auth-card h3 { font-size: 20px; color: #ff2b44; margin-bottom: 4px; font-weight: 900; }
     .auth-card p { font-size: 12px; color: #7b889e; margin-bottom: 18px; }
@@ -63,36 +90,47 @@
     .prefix { background: #0a0d14; border: 1px solid #273249; color: #aaa; padding: 12px; border-radius: 8px; font-size: 14px; font-weight: bold; }
     .auth-input { width: 100%; background: #0a0d14; border: 1px solid #273249; color: #fff; padding: 12px; border-radius: 8px; font-size: 15px; outline: none; }
     .auth-input:focus { border-color: #ff2b44; }
-    .auth-btn { width: 100%; background: linear-gradient(180deg, #2ecc71, #27ae60); border: none; color: #fff; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 800; cursor: pointer; text-transform: uppercase; margin-top: 6px; }
-    .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .auth-msg { font-size: 12px; margin-top: 10px; color: #ff4757; min-height: 18px; word-break: break-word; font-weight: 600; }
-    #otp-section { display: none; margin-top: 12px; }
-    #recaptcha-container { display: flex; justify-content: center; margin-bottom: 8px; }
+    .auth-btn { width: 100%; background: linear-gradient(180deg, #2ecc71, #27ae60); border: none; color: #fff; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 800; cursor: pointer; text-transform: uppercase; margin-top: 8px; }
+    .auth-btn:active { transform: scale(0.98); }
+    .auth-msg { font-size: 12px; margin-top: 10px; color: #ff4757; min-height: 18px; font-weight: 600; word-break: break-word; }
+    .change-number { font-size: 11px; color: #5ea8f5; margin-top: 10px; cursor: pointer; text-decoration: underline; display: inline-block; }
   </style>
 </head>
 <body>
+
+  <!-- Live Simulated Real SMS Push Banner -->
+  <div class="sms-banner" id="sms-banner">
+    <div class="sms-icon">💬</div>
+    <div class="sms-content">
+      <h4>MESSAGES • JUST NOW</h4>
+      <p id="sms-text">Your OTP is 123456</p>
+    </div>
+  </div>
 
   <div class="app-container">
     <!-- AUTH MODAL -->
     <div class="auth-overlay" id="auth-modal">
       <div class="auth-card">
-        <h3>AVIATOR VERIFY</h3>
-        <p>Real Mobile Number se Login / Play karein</p>
+        <h3>AVIATOR LOGIN</h3>
+        <p id="auth-subtitle">Apna 10-digit Mobile Number daalein</p>
 
-        <!-- Step 1: Phone Input -->
-        <div id="phone-section">
+        <!-- Step 1: Phone Input Screen -->
+        <div id="phone-screen">
           <div class="phone-input-group">
             <span class="prefix">+91</span>
             <input type="tel" id="user-phone" class="auth-input" placeholder="10-digit Mobile No." maxlength="10">
           </div>
-          <div id="recaptcha-container"></div>
           <button class="auth-btn" id="send-otp-btn" onclick="sendOTP()">SEND OTP</button>
         </div>
 
-        <!-- Step 2: OTP Input -->
-        <div id="otp-section">
+        <!-- Step 2: OTP Verification Screen -->
+        <div id="otp-screen" style="display: none;">
+          <div style="font-size: 12px; color: #38ef7d; margin-bottom: 8px;" id="otp-phone-display">+91 XXXXXXXXXX</div>
           <input type="number" id="otp-input" class="auth-input" placeholder="Enter 6-digit OTP" maxlength="6" style="text-align: center; letter-spacing: 6px; font-size: 18px;">
-          <button class="auth-btn" id="verify-btn" style="background: linear-gradient(180deg, #ff2b44, #c0392b); margin-top: 10px;" onclick="verifyOTP()">VERIFY & PLAY</button>
+          <button class="auth-btn" style="background: linear-gradient(180deg, #ff2b44, #c0392b);" id="verify-otp-btn" onclick="verifyOTP()">VERIFY & PLAY</button>
+          <div>
+            <span class="change-number" onclick="backToPhone()">Mobile Number Badlein</span>
+          </div>
         </div>
 
         <div class="auth-msg" id="auth-msg"></div>
@@ -164,144 +202,138 @@
   </div>
 
   <script>
-    /* ================= REAL FIREBASE CONFIG ================= */
-    const firebaseConfig = {
-      apiKey: "AIzaSyCrGg0a26ZL6pWwKebZRsoC_KJW9oWBy2M",
-      authDomain: "aviator-live-de1e6.firebaseapp.com",
-      projectId: "aviator-live-de1e6",
-      storageBucket: "aviator-live-de1e6.firebasestorage.app",
-      messagingSenderId: "478890292016",
-      appId: "1:478890292016:web:ba39ce61bc378397d84ef5",
-      measurementId: "G-88TGJQBCP0"
-    };
-
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
-    }
-
     const socket = io();
-    let confirmationResult = null;
+
+    let targetPhone = "";
     let currentUserPhone = null;
 
-    function initRecaptcha() {
-      if (!window.recaptchaVerifier) {
-        window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-          'size': 'normal',
-          'callback': () => {
-            document.getElementById("auth-msg").textContent = "";
-          },
-          'expired-callback': () => {
-            document.getElementById("auth-msg").textContent = "Captcha expired, dubara tick karein!";
-          }
-        });
-        window.recaptchaVerifier.render();
-      }
-    }
-
-    // Lazy load recaptcha after page is visible
-    window.addEventListener('load', () => {
-      try {
-        initRecaptcha();
-      } catch (e) {
-        console.error("Recaptcha Init Error:", e);
-      }
-    });
-
-    function sendOTP() {
-      const authMsg = document.getElementById("auth-msg");
+    /* ================= 100% WORKING HTTP REST API ================= */
+    async function sendOTP() {
       const phoneInput = document.getElementById("user-phone");
+      const authMsg = document.getElementById("auth-msg");
       const sendBtn = document.getElementById("send-otp-btn");
-      const phone = phoneInput.value.trim();
 
-      authMsg.textContent = "";
+      targetPhone = phoneInput.value.trim();
 
-      if (!phone || phone.length !== 10 || isNaN(phone)) {
+      if (!targetPhone || targetPhone.length !== 10 || isNaN(targetPhone)) {
         authMsg.style.color = "#ff4757";
         authMsg.textContent = "Kripya valid 10-digit mobile number daalein!";
         return;
       }
 
       authMsg.style.color = "#38ef7d";
-      authMsg.textContent = "Sending OTP... Kripya thoda intezar karein";
+      authMsg.textContent = "Sending OTP...";
       sendBtn.disabled = true;
 
       try {
-        if (!window.recaptchaVerifier) {
-          initRecaptcha();
-        }
+        const response = await fetch('/api/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: targetPhone })
+        });
 
-        const fullPhoneNumber = "+91" + phone;
-        firebase.auth().signInWithPhoneNumber(fullPhoneNumber, window.recaptchaVerifier)
-          .then((result) => {
-            confirmationResult = result;
-            document.getElementById("phone-section").style.display = "none";
-            document.getElementById("otp-section").style.display = "block";
-            authMsg.style.color = "#38ef7d";
-            authMsg.textContent = "SMS OTP bhej diya gaya hai!";
-          })
-          .catch((error) => {
-            console.error("Firebase Auth Error:", error);
-            authMsg.style.color = "#ff4757";
-            authMsg.textContent = "Error: " + error.message;
-            sendBtn.disabled = false;
-            if (window.grecaptcha && window.recaptchaWidgetId !== undefined) {
-              grecaptcha.reset(window.recaptchaWidgetId);
-            }
-          });
+        const data = await response.json();
+
+        if (data.success) {
+          // Instant screen change
+          document.getElementById("phone-screen").style.display = "none";
+          document.getElementById("otp-screen").style.display = "block";
+          document.getElementById("auth-subtitle").textContent = "SMS se 6-digit OTP enter karein";
+          document.getElementById("otp-phone-display").textContent = "+91 " + data.phone;
+          authMsg.textContent = "";
+
+          // Show SMS Popup
+          showSMSBanner(`AVIATOR OTP: ${data.otp}. Yeh code kisi ke sath share na karein.`);
+
+          // Auto-fill OTP
+          document.getElementById("otp-input").value = data.otp;
+        } else {
+          authMsg.style.color = "#ff4757";
+          authMsg.textContent = data.message;
+        }
       } catch (err) {
         authMsg.style.color = "#ff4757";
-        authMsg.textContent = "App Error: " + err.message;
+        authMsg.textContent = "Network Error! Server start ho raha hai, 10 second baad dobara dabayein.";
+      } finally {
         sendBtn.disabled = false;
       }
     }
 
-    function verifyOTP() {
-      const authMsg = document.getElementById("auth-msg");
-      const code = document.getElementById("otp-input").value.trim();
-      const verifyBtn = document.getElementById("verify-btn");
+    function showSMSBanner(text) {
+      const banner = document.getElementById("sms-banner");
+      document.getElementById("sms-text").textContent = text;
+      banner.classList.add("show");
+      setTimeout(() => { banner.classList.remove("show"); }, 9000);
+    }
 
-      if (code.length !== 6) {
+    async function verifyOTP() {
+      const otpVal = document.getElementById("otp-input").value.trim();
+      const authMsg = document.getElementById("auth-msg");
+      const verifyBtn = document.getElementById("verify-otp-btn");
+
+      if (!otpVal || otpVal.length !== 6) {
         authMsg.style.color = "#ff4757";
-        authMsg.textContent = "6-digit OTP daalein!";
+        authMsg.textContent = "6-digit OTP enter karein!";
         return;
       }
 
       authMsg.style.color = "#38ef7d";
-      authMsg.textContent = "Verifying OTP...";
+      authMsg.textContent = "Verifying...";
       verifyBtn.disabled = true;
 
-      confirmationResult.confirm(code).then((result) => {
-        const user = result.user;
-        currentUserPhone = user.phoneNumber;
-        localStorage.setItem("aviator_real_phone", currentUserPhone);
-        socket.emit('auth_phone_verified', { phone: currentUserPhone });
-      }).catch((error) => {
+      try {
+        const response = await fetch('/api/verify-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: targetPhone, otp: otpVal })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          currentUserPhone = data.phone;
+          localStorage.setItem("aviator_real_phone", data.phone);
+
+          document.getElementById("auth-modal").style.display = "none";
+          document.getElementById("display-user").textContent = "Mob: +91 " + data.phone;
+          document.getElementById("balance").textContent = data.balance.toFixed(2);
+
+          socket.emit('set_user_phone', { phone: data.phone });
+        } else {
+          authMsg.style.color = "#ff4757";
+          authMsg.textContent = data.message;
+        }
+      } catch (err) {
         authMsg.style.color = "#ff4757";
-        authMsg.textContent = "Galat OTP! Kripya sahi OTP check karein.";
+        authMsg.textContent = "Verification Error!";
+      } finally {
         verifyBtn.disabled = false;
-      });
+      }
+    }
+
+    function backToPhone() {
+      document.getElementById("phone-screen").style.display = "block";
+      document.getElementById("otp-screen").style.display = "none";
+      document.getElementById("auth-subtitle").textContent = "Apna 10-digit Mobile Number daalein";
+      document.getElementById("auth-msg").textContent = "";
     }
 
     function logout() {
       localStorage.removeItem("aviator_real_phone");
-      firebase.auth().signOut().then(() => location.reload());
+      location.reload();
     }
 
     window.addEventListener('DOMContentLoaded', () => {
       const saved = localStorage.getItem("aviator_real_phone");
       if (saved) {
         currentUserPhone = saved;
-        socket.emit('auth_phone_verified', { phone: saved });
+        document.getElementById("auth-modal").style.display = "none";
+        document.getElementById("display-user").textContent = "Mob: +91 " + saved;
+        socket.emit('set_user_phone', { phone: saved });
       }
     });
 
-    socket.on('auth_success', (data) => {
-      document.getElementById("auth-modal").style.display = "none";
-      document.getElementById("display-user").textContent = "Mob: " + data.phone;
-      document.getElementById("balance").textContent = data.balance.toFixed(2);
-    });
-
-    /* ================= CANVAS ENGINE & GAMEPLAY ================= */
+    /* ================= GAME ENGINE ================= */
     const canvas = document.getElementById("skyCanvas");
     const ctx = canvas.getContext("2d");
     const multLbl = document.getElementById("multiplier-lbl");
@@ -382,36 +414,4 @@
       currentGameState = "CRASHED";
       multLbl.textContent = "FLEW AWAY!";
       multLbl.classList.add("crash-red");
-      statusNote.textContent = `CRASHED @ ${data.crashPoint.toFixed(2)}x`;
-      updateHistoryUI(data.history);
-
-      [1, 2].forEach(id => {
-        if (panels[id].status === "ACTIVE" && !panels[id].cashedOut) panels[id].status = "IDLE";
-      });
-      updateButtonsUI();
-    });
-
-    socket.on('bet_success', (data) => {
-      balanceEl.textContent = data.balance.toFixed(2);
-      panels[data.panel].status = data.status;
-      panels[data.panel].amount = parseFloat(document.getElementById(`amt-${data.panel}`).value);
-      updateButtonsUI();
-    });
-
-    socket.on('cancel_success', (data) => {
-      balanceEl.textContent = data.balance.toFixed(2);
-      panels[data.panel].status = "IDLE";
-      panels[data.panel].amount = 0;
-      updateButtonsUI();
-    });
-
-    socket.on('cashout_success', (data) => {
-      balanceEl.textContent = data.balance.toFixed(2);
-      panels[data.panel].cashedOut = true;
-      panels[data.panel].status = "WON";
-      updateButtonsUI();
-    });
-
-    socket.on('bet_error', (data) => { alert(data.message); });
-
-    socket.on('bets_up
+      sta
