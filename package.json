@@ -1,7 +1,7 @@
 {
   "name": "aviator-realtime",
   "version": "1.0.0",
-  "description": "Realtime Aviator Crash Game with WebSockets",
+  "description": "Realtime Aviator Multiplayer Game",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
