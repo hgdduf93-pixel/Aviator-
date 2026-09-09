@@ -3,94 +3,78 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Aviator Live</title>
+  <title>Aviator Live Real-Time</title>
   <script src="/socket.io/socket.io.js"></script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; }
-    body { background-color: #0c0f17; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 8px; }
-    .app-container { width: 100%; max-width: 950px; background: #121622; border: 1px solid #232a3d; border-radius: 16px; padding: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.8); position: relative; }
-    
+    body { background-color: #0b0e14; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 6px; }
+    .app-container { width: 100%; max-width: 950px; background: #111622; border: 1px solid #1f2738; border-radius: 16px; padding: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.85); position: relative; }
+
+    /* Top Bar */
     .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-    .title { font-size: 22px; font-weight: 900; font-style: italic; color: #ff2b44; letter-spacing: 1px; }
+    .title { font-size: 24px; font-weight: 900; font-style: italic; color: #ff2b44; letter-spacing: 1px; }
     .user-info-group { display: flex; align-items: center; gap: 8px; }
-    .badge { font-size: 11px; color: #2ed573; background: rgba(46, 213, 115, 0.1); padding: 4px 10px; border-radius: 12px; border: 1px solid rgba(46, 213, 115, 0.25); }
-    .wallet { background: #1a2130; border: 1px solid #2c3852; padding: 6px 14px; border-radius: 20px; font-weight: 700; color: #2ecc71; font-size: 14px; text-align: right; }
+    .badge { font-size: 11px; color: #2ed573; background: rgba(46, 213, 115, 0.12); padding: 4px 10px; border-radius: 12px; border: 1px solid rgba(46, 213, 115, 0.3); }
+    .wallet { background: #182030; border: 1px solid #283650; padding: 6px 14px; border-radius: 20px; font-weight: 700; color: #2ecc71; font-size: 14px; text-align: right; }
     .user-email-label { font-size: 11px; color: #8c9cb3; display: block; line-height: 1; margin-bottom: 3px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .logout-btn { background: #232c40; border: none; color: #ff5252; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; }
 
+    /* Multiplier History */
     .history-row { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 10px; scrollbar-width: none; }
     .history-row::-webkit-scrollbar { display: none; }
-    .history-pill { padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; background: #171d2b; color: #5ea8f5; border: 1px solid #24314c; white-space: nowrap; }
+    .history-pill { padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 800; background: #151b27; color: #5ea8f5; border: 1px solid #222e47; white-space: nowrap; }
     .history-pill.top { color: #c950e8; border-color: #8b349b; }
 
-    .stage { position: relative; width: 100%; height: 330px; background: radial-gradient(circle at 10% 90%, #20111f 0%, #090c13 75%); border-radius: 12px; overflow: hidden; border: 1px solid #1f2738; }
+    /* Canvas Stage */
+    .stage { position: relative; width: 100%; height: 320px; background: radial-gradient(circle at 10% 90%, #22121f 0%, #080b12 75%); border-radius: 12px; overflow: hidden; border: 1px solid #1c2436; }
     canvas { width: 100%; height: 100%; display: block; }
-    .center-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; z-index: 5; }
-    .current-mult { font-size: 58px; font-weight: 900; line-height: 1; text-shadow: 0 4px 18px rgba(0,0,0,0.8); }
-    .status-note { font-size: 13px; font-weight: 700; letter-spacing: 2px; color: #78859b; margin-top: 6px; }
+    .center-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; z-index: 5; width: 100%; }
+    .current-mult { font-size: 64px; font-weight: 900; line-height: 1; text-shadow: 0 6px 25px rgba(0,0,0,0.9); }
+    .status-note { font-size: 14px; font-weight: 800; letter-spacing: 2px; color: #8e9bb0; margin-top: 8px; }
     .crash-red { color: #ff2b44 !important; }
 
-    .bet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-    @media (max-width: 650px) { .bet-grid { grid-template-columns: 1fr; } .stage { height: 250px; } .current-mult { font-size: 42px; } }
-    .card { background: #161b27; border: 1px solid #232c40; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
-    .card-top { display: flex; justify-content: space-between; font-size: 11px; color: #7b889e; font-weight: 600; }
+    /* Progress bar for countdown */
+    .countdown-bar-wrap { width: 200px; height: 6px; background: #202738; border-radius: 6px; margin: 10px auto 0; overflow: hidden; display: none; }
+    .countdown-bar { width: 100%; height: 100%; background: #ff2b44; transition: width 1s linear; }
+
+    /* Bet Panels */
+    .bet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    @media (max-width: 650px) { .bet-grid { grid-template-columns: 1fr; } .stage { height: 240px; } .current-mult { font-size: 44px; } }
+    .card { background: #141924; border: 1px solid #212a3d; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+    .card-top { display: flex; justify-content: space-between; font-size: 11px; color: #7b889e; font-weight: 700; }
     .auto-cash-group { display: flex; align-items: center; gap: 4px; }
     .auto-cash-group input[type="number"] { width: 52px; background: #0b0e14; border: 1px solid #28334b; color: #fff; border-radius: 4px; font-size: 11px; text-align: center; padding: 2px; }
     .controls-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .input-wrapper { background: #0a0d14; border: 1px solid #29344c; border-radius: 8px; display: flex; align-items: center; }
-    .input-wrapper input { width: 100%; background: transparent; border: none; color: #fff; font-size: 16px; font-weight: 700; text-align: center; outline: none; }
-    .action-btn { height: 46px; border: none; border-radius: 8px; font-size: 15px; font-weight: 800; color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-transform: uppercase; transition: filter 0.2s; }
-    .action-btn:hover { filter: brightness(1.1); }
+    .input-wrapper { background: #0a0d14; border: 1px solid #27334a; border-radius: 8px; display: flex; align-items: center; }
+    .input-wrapper input { width: 100%; background: transparent; border: none; color: #fff; font-size: 16px; font-weight: 800; text-align: center; outline: none; }
+    .action-btn { height: 48px; border: none; border-radius: 8px; font-size: 16px; font-weight: 900; color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-transform: uppercase; transition: transform 0.1s, filter 0.2s; }
+    .action-btn:active { transform: scale(0.97); }
     .btn-green { background: linear-gradient(180deg, #2ecc71, #27ae60); }
-    .btn-orange { background: linear-gradient(180deg, #f39c12, #d35400); animation: pulse 1s infinite alternate; }
+    .btn-orange { background: linear-gradient(180deg, #f39c12, #d35400); animation: pulse 0.8s infinite alternate; }
     .btn-red { background: linear-gradient(180deg, #e74c3c, #c0392b); }
-    .btn-sub { font-size: 10px; opacity: 0.9; }
+    .btn-sub { font-size: 11px; opacity: 0.92; font-weight: 700; }
     .quick-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
-    .chip-btn { background: #0f131d; border: 1px solid #232c40; color: #8c9cb3; padding: 4px; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer; }
+    .chip-btn { background: #0f131d; border: 1px solid #232c40; color: #8c9cb3; padding: 4px; border-radius: 6px; font-size: 10px; font-weight: 800; cursor: pointer; }
     .chip-btn:hover { background: #222b3f; color: #fff; }
-    .live-bets { margin-top: 10px; background: #0a0d14; border: 1px solid #1c2332; border-radius: 8px; padding: 8px 12px; max-height: 75px; overflow-y: auto; font-size: 11px; }
+    .live-bets { margin-top: 10px; background: #0a0d14; border: 1px solid #1a2233; border-radius: 8px; padding: 8px 12px; max-height: 75px; overflow-y: auto; font-size: 11px; }
     .live-row { display: flex; justify-content: space-between; color: #78859b; padding: 2px 0; }
-    .live-row.win { color: #2ecc71; }
-    @keyframes pulse { 0% { box-shadow: 0 0 5px rgba(243, 156, 18, 0.4); } 100% { box-shadow: 0 0 15px rgba(243, 156, 18, 0.85); } }
+    .live-row.win { color: #2ecc71; font-weight: 700; }
+    @keyframes pulse { 0% { box-shadow: 0 0 5px rgba(243, 156, 18, 0.4); } 100% { box-shadow: 0 0 16px rgba(243, 156, 18, 0.9); } }
 
     /* AUTH MODAL */
-    .auth-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 13, 20, 0.98); backdrop-filter: blur(10px); z-index: 500; display: flex; justify-content: center; align-items: center; border-radius: 16px; }
-    .auth-card { width: 92%; max-width: 380px; background: #161b29; border: 1px solid #2b354d; border-radius: 16px; padding: 24px 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.85); text-align: center; }
-    .auth-card h3 { font-size: 20px; color: #ff2b44; margin-bottom: 4px; font-weight: 900; }
+    .auth-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(8, 11, 18, 0.98); backdrop-filter: blur(12px); z-index: 500; display: flex; justify-content: center; align-items: center; border-radius: 16px; }
+    .auth-card { width: 92%; max-width: 380px; background: #151b27; border: 1px solid #28354c; border-radius: 16px; padding: 24px 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.9); text-align: center; }
+    .auth-card h3 { font-size: 22px; color: #ff2b44; margin-bottom: 4px; font-weight: 900; }
     .auth-card p { font-size: 12px; color: #7b889e; margin-bottom: 16px; }
-
-    .bonus-tag {
-      background: rgba(46, 213, 115, 0.15);
-      border: 1px solid #2ed573;
-      color: #2ed573;
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 800;
-      margin-bottom: 14px;
-      display: inline-block;
-    }
-
+    .bonus-tag { background: rgba(46, 213, 115, 0.15); border: 1px solid #2ed573; color: #2ed573; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 800; margin-bottom: 14px; display: inline-block; }
     .auth-inputs { display: flex; flex-direction: column; gap: 10px; }
-    .auth-input { width: 100%; background: #0a0d14; border: 1px solid #273249; color: #fff; padding: 12px; border-radius: 8px; font-size: 15px; outline: none; }
+    .auth-input { width: 100%; background: #090c12; border: 1px solid #263248; color: #fff; padding: 12px; border-radius: 8px; font-size: 15px; outline: none; }
     .auth-input:focus { border-color: #ff2b44; }
     .auth-btn { width: 100%; background: linear-gradient(180deg, #2ecc71, #27ae60); border: none; color: #fff; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 800; cursor: pointer; text-transform: uppercase; margin-top: 6px; }
-    .auth-btn:active { transform: scale(0.98); }
-    .auth-msg { font-size: 12px; margin-top: 10px; color: #ff4757; min-height: 18px; font-weight: 600; word-break: break-word; }
-    
-    .switch-link-box {
-      margin-top: 14px;
-      font-size: 12px;
-      color: #8c9cb3;
-    }
-    .switch-link {
-      color: #5ea8f5;
-      font-weight: bold;
-      text-decoration: underline;
-      cursor: pointer;
-      margin-left: 4px;
-    }
+    .auth-msg { font-size: 12px; margin-top: 10px; color: #ff4757; min-height: 18px; font-weight: 700; word-break: break-word; }
+    .switch-link-box { margin-top: 14px; font-size: 12px; color: #8c9cb3; }
+    .switch-link { color: #5ea8f5; font-weight: bold; text-decoration: underline; cursor: pointer; margin-left: 4px; }
   </style>
 </head>
 <body>
@@ -99,13 +83,13 @@
     <!-- AUTH MODAL -->
     <div class="auth-overlay" id="auth-modal">
       
-      <!-- SCREEN 1: LOGIN SCREEN -->
+      <!-- 1. LOGIN SCREEN -->
       <div class="auth-card" id="login-screen">
         <h3>AVIATOR LOGIN</h3>
-        <p>Apne Email aur Password se Login karein</p>
+        <p>Real Email aur Password se Login karein</p>
 
         <div class="auth-inputs">
-          <input type="email" id="login-email" class="auth-input" placeholder="Email ID (e.g. name@gmail.com)" autocomplete="off">
+          <input type="email" id="login-email" class="auth-input" placeholder="Email (e.g. rahul@gmail.com)" autocomplete="off">
           <input type="password" id="login-pass" class="auth-input" placeholder="Password">
           <button type="button" class="auth-btn" id="login-btn" onclick="doLogin()">LOGIN KAREIN</button>
         </div>
@@ -117,17 +101,16 @@
         </div>
       </div>
 
-      <!-- SCREEN 2: SIGN UP SCREEN (COMPLETELY SEPARATE) -->
+      <!-- 2. SIGN UP SCREEN -->
       <div class="auth-card" id="signup-screen" style="display: none;">
-        <h3>CREATE NEW ACCOUNT</h3>
-        <p>Real Email se Sign Up karein</p>
+        <h3>NEW ACCOUNT</h3>
+        <p>Sign Up karein aur direct live game open karein</p>
         
         <div class="bonus-tag">🎁 Signup Bonus: Instant ₹500 Free</div>
 
         <div class="auth-inputs">
-          <input type="email" id="signup-email" class="auth-input" placeholder="Email ID (e.g. name@gmail.com)" autocomplete="off">
-          <input type="password" id="signup-pass" class="auth-input" placeholder="Naya Password banayein">
-          <input type="password" id="signup-confirm-pass" class="auth-input" placeholder="Confirm Password">
+          <input type="email" id="signup-email" class="auth-input" placeholder="Email (e.g. rahul@gmail.com)" autocomplete="off">
+          <input type="password" id="signup-pass" class="auth-input" placeholder="Password banayein (min 4 letters)">
           <button type="button" class="auth-btn" style="background: linear-gradient(180deg, #ff2b44, #c0392b);" id="signup-btn" onclick="doSignup()">SIGN UP & PLAY</button>
         </div>
 
@@ -142,9 +125,9 @@
 
     <!-- Top Navigation Bar -->
     <div class="top-bar">
-      <div class="title">AVIATOR LIVE</div>
+      <div class="title">AVIATOR</div>
       <div class="user-info-group">
-        <div class="badge">● <span id="online-count">1</span> Online</div>
+        <div class="badge">● <span id="online-count">1</span> Live</div>
         <div class="wallet">
           <span class="user-email-label" id="display-user">Loading...</span>
           ₹<span id="balance">500.00</span>
@@ -153,16 +136,22 @@
       </div>
     </div>
 
+    <!-- Multiplier Pills -->
     <div class="history-row" id="history-box"></div>
 
-    <div class="stage">
+    <!-- Game Stage -->
+    <div class="stage" id="stage-box">
       <div class="center-overlay">
         <div class="current-mult" id="multiplier-lbl">1.00x</div>
-        <div class="status-note" id="status-note">CONNECTING...</div>
+        <div class="status-note" id="status-note">STARTING ENGINE...</div>
+        <div class="countdown-bar-wrap" id="bar-wrap">
+          <div class="countdown-bar" id="bar-inner"></div>
+        </div>
       </div>
       <canvas id="skyCanvas"></canvas>
     </div>
 
+    <!-- Dual Bet Panels -->
     <div class="bet-grid">
       <!-- Panel 1 -->
       <div class="card" id="card-1">
@@ -177,8 +166,8 @@
         <div class="quick-chips">
           <button class="chip-btn" onclick="addChip(1, 50)">+50</button>
           <button class="chip-btn" onclick="addChip(1, 100)">+100</button>
+          <button class="chip-btn" onclick="addChip(1, 200)">+200</button>
           <button class="chip-btn" onclick="addChip(1, 500)">+500</button>
-          <button class="chip-btn" onclick="addChip(1, 1000)">+1000</button>
         </div>
       </div>
 
@@ -195,23 +184,56 @@
         <div class="quick-chips">
           <button class="chip-btn" onclick="addChip(2, 50)">+50</button>
           <button class="chip-btn" onclick="addChip(2, 100)">+100</button>
+          <button class="chip-btn" onclick="addChip(2, 200)">+200</button>
           <button class="chip-btn" onclick="addChip(2, 500)">+500</button>
-          <button class="chip-btn" onclick="addChip(2, 1000)">+1000</button>
         </div>
       </div>
     </div>
 
-    <div class="live-bets" id="live-bets"><div class="live-row"><span>Connecting network...</span></div></div>
+    <!-- Real-Time Bets -->
+    <div class="live-bets" id="live-bets"><div class="live-row"><span>Synchronizing with live server...</span></div></div>
   </div>
 
   <script>
-    let currentUserEmail = null;
+    const socket = io();
 
-    // Switch between Login and Sign Up Screens
+    let currentUserEmail = null;
+    let currentGameState = "COUNTDOWN";
+    let serverMultiplier = 1.00;
+    let localElapsed = 0;
+    let particles = [];
+    let propeller = 0;
+    let planeX = 0, planeY = 0;
+    let gridOffset = 0;
+
+    const panels = {
+      1: { status: "IDLE", amount: 0, cashedOut: false },
+      2: { status: "IDLE", amount: 0, cashedOut: false }
+    };
+
+    const canvas = document.getElementById("skyCanvas");
+    const ctx = canvas.getContext("2d");
+    const multLbl = document.getElementById("multiplier-lbl");
+    const statusNote = document.getElementById("status-note");
+    const barWrap = document.getElementById("bar-wrap");
+    const barInner = document.getElementById("bar-inner");
+    const balanceEl = document.getElementById("balance");
+    const historyBox = document.getElementById("history-box");
+    const onlineEl = document.getElementById("online-count");
+    const liveBetsBox = document.getElementById("live-bets");
+
+    function resize() {
+      const stage = document.getElementById("stage-box");
+      canvas.width = stage.clientWidth;
+      canvas.height = stage.clientHeight;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    /* ================= AUTHENTICATION FLOW ================= */
     function showScreen(type) {
       document.getElementById("login-msg").textContent = "";
       document.getElementById("signup-msg").textContent = "";
-
       if (type === 'signup') {
         document.getElementById("login-screen").style.display = "none";
         document.getElementById("signup-screen").style.display = "block";
@@ -221,32 +243,23 @@
       }
     }
 
-    // 1. SIGN UP ACTION
     async function doSignup() {
       const email = document.getElementById("signup-email").value.trim().toLowerCase();
       const pass = document.getElementById("signup-pass").value.trim();
-      const confirmPass = document.getElementById("signup-confirm-pass").value.trim();
       const msg = document.getElementById("signup-msg");
       const btn = document.getElementById("signup-btn");
 
       if (!email || !email.includes('@') || !email.includes('.')) {
-        msg.style.color = "#ff4757";
         msg.textContent = "Kripya sahi Email ID daalein!";
         return;
       }
-      if (!pass || pass.length < 3) {
-        msg.style.color = "#ff4757";
-        msg.textContent = "Password kam se kam 3 akshar ka daalein!";
-        return;
-      }
-      if (pass !== confirmPass) {
-        msg.style.color = "#ff4757";
-        msg.textContent = "Dono Password match nahi kar rahe hain!";
+      if (!pass || pass.length < 4) {
+        msg.textContent = "Password min 4 akshar ka hona chahiye!";
         return;
       }
 
       btn.disabled = true;
-      btn.textContent = "ACCOUNT BAN RAHA HAI...";
+      btn.textContent = "CREATING ACCOUNT...";
       msg.textContent = "";
 
       try {
@@ -261,40 +274,31 @@
           currentUserEmail = data.email;
           localStorage.setItem("aviator_real_email", data.email);
 
-          // UNLOCK GAME IMMEDIATELY
+          // CLOSE POPUP & OPEN GAME
           document.getElementById("auth-modal").style.display = "none";
           document.getElementById("display-user").textContent = data.email;
-          document.getElementById("balance").textContent = data.balance.toFixed(2);
-
-          if (socket) socket.emit('set_user_email', { email: data.email });
+          balanceEl.textContent = data.balance.toFixed(2);
+          socket.emit('set_user_email', { email: data.email });
+          resize();
         } else {
-          msg.style.color = "#ff4757";
           msg.textContent = data.message;
         }
       } catch (err) {
-        msg.style.color = "#ff4757";
-        msg.textContent = "Server connect error! 5 second baad koshish karein.";
+        msg.textContent = "Server connect error, thodi der baad koshish karein!";
       } finally {
         btn.disabled = false;
         btn.textContent = "SIGN UP & PLAY";
       }
     }
 
-    // 2. LOGIN ACTION
     async function doLogin() {
       const email = document.getElementById("login-email").value.trim().toLowerCase();
       const pass = document.getElementById("login-pass").value.trim();
       const msg = document.getElementById("login-msg");
       const btn = document.getElementById("login-btn");
 
-      if (!email) {
-        msg.style.color = "#ff4757";
-        msg.textContent = "Email ID daalein!";
-        return;
-      }
-      if (!pass) {
-        msg.style.color = "#ff4757";
-        msg.textContent = "Password daalein!";
+      if (!email || !pass) {
+        msg.textContent = "Email aur Password dono bharein!";
         return;
       }
 
@@ -314,19 +318,17 @@
           currentUserEmail = data.email;
           localStorage.setItem("aviator_real_email", data.email);
 
-          // UNLOCK GAME IMMEDIATELY
+          // CLOSE POPUP & OPEN GAME
           document.getElementById("auth-modal").style.display = "none";
           document.getElementById("display-user").textContent = data.email;
-          document.getElementById("balance").textContent = data.balance.toFixed(2);
-
-          if (socket) socket.emit('set_user_email', { email: data.email });
+          balanceEl.textContent = data.balance.toFixed(2);
+          socket.emit('set_user_email', { email: data.email });
+          resize();
         } else {
-          msg.style.color = "#ff4757";
           msg.textContent = data.message;
         }
       } catch (err) {
-        msg.style.color = "#ff4757";
-        msg.textContent = "Server connect error! 5 second baad koshish karein.";
+        msg.textContent = "Server connect error, thodi der baad koshish karein!";
       } finally {
         btn.disabled = false;
         btn.textContent = "LOGIN KAREIN";
@@ -344,83 +346,58 @@
         currentUserEmail = saved;
         document.getElementById("auth-modal").style.display = "none";
         document.getElementById("display-user").textContent = saved;
-        if (socket) socket.emit('set_user_email', { email: saved });
+        socket.emit('set_user_email', { email: saved });
       }
     });
 
-    /* ================= GAMEPLAY ENGINE ================= */
-    let socket = null;
-    try { if (typeof io !== 'undefined') socket = io(); } catch (e) {}
+    /* ================= MULTIPLAYER REAL-TIME ENGINE ================= */
+    socket.on('init_sync', (data) => {
+      currentGameState = data.gameState;
+      updateHistoryUI(data.history);
 
-    const canvas = document.getElementById("skyCanvas");
-    const ctx = canvas.getContext("2d");
-    const multLbl = document.getElementById("multiplier-lbl");
-    const statusNote = document.getElementById("status-note");
-    const balanceEl = document.getElementById("balance");
-    const historyBox = document.getElementById("history-box");
-    const onlineEl = document.getElementById("online-count");
-    const liveBetsBox = document.getElementById("live-bets");
-
-    let currentGameState = "COUNTDOWN";
-    let serverMultiplier = 1.00;
-    let localElapsed = 0;
-    let particles = [];
-    let propeller = 0;
-    let planeX = 0, planeY = 0;
-    let gridOffset = 0;
-
-    const panels = {
-      1: { status: "IDLE", amount: 0, cashedOut: false },
-      2: { status: "IDLE", amount: 0, cashedOut: false }
-    };
-
-    function resize() {
-      canvas.width = canvas.parentElement.clientWidth;
-      canvas.height = canvas.parentElement.clientHeight;
-    }
-    window.addEventListener("resize", resize);
-    resize();
-
-    function addChip(id, val) {
-      const input = document.getElementById(`amt-${id}`);
-      input.value = (parseFloat(input.value) || 0) + val;
-      updateButtonsUI();
-    }
-
-    if (socket) {
-      socket.on('online_count', (count) => { onlineEl.textContent = count; });
-
-      socket.on('round_countdown', (data) => {
-        currentGameState = "COUNTDOWN";
-        multLbl.classList.remove("crash-red");
-        multLbl.textContent = "1.00x";
-        statusNote.textContent = `NEXT ROUND IN ${data.seconds}s`;
-        particles = [];
-        updateHistoryUI(data.history);
-
-        [1, 2].forEach(id => {
-          if (panels[id].status === "QUEUED") panels[id].status = "ACTIVE";
-          else if (panels[id].status === "WON") panels[id].status = "IDLE";
-        });
-        updateButtonsUI();
-      });
-
-      socket.on('countdown_tick', (data) => { statusNote.textContent = `NEXT ROUND IN ${data.seconds}s`; });
-
-      socket.on('flight_start', () => {
-        currentGameState = "FLYING";
-        statusNote.textContent = "";
-        localElapsed = 0;
-        updateButtonsUI();
-      });
-
-      socket.on('game_tick', (data) => {
+      if (currentGameState === 'FLYING') {
         serverMultiplier = data.multiplier;
         localElapsed = data.elapsed;
         multLbl.textContent = serverMultiplier.toFixed(2) + "x";
+        multLbl.classList.remove("crash-red");
+        statusNote.textContent = "";
+        barWrap.style.display = "none";
+      } else if (currentGameState === 'COUNTDOWN') {
+        multLbl.textContent = "1.00x";
+        multLbl.classList.remove("crash-red");
+        statusNote.textContent = `NEXT ROUND IN ${data.countdownSeconds}s`;
+        barWrap.style.display = "block";
+      } else if (currentGameState === 'CRASHED') {
+        multLbl.textContent = "FLEW AWAY!";
+        multLbl.classList.add("crash-red");
+        statusNote.textContent = "";
+        barWrap.style.display = "none";
+      }
+      updateButtonsUI();
+    });
 
-        [1, 2].forEach(id => {
-          const autoCheck = document.getElementById(`auto-check-${id}`).checked;
-          const autoVal = parseFloat(document.getElementById(`auto-val-${id}`).value) || 9999;
-          if (autoCheck && panels[id].status === "ACTIVE" && !panels[id].cashedOut && serverMultiplier >= autoVal) {
-       
+    socket.on('balance_update', (data) => {
+      balanceEl.textContent = data.balance.toFixed(2);
+    });
+
+    socket.on('online_count', (count) => { onlineEl.textContent = count; });
+
+    socket.on('round_countdown', (data) => {
+      currentGameState = "COUNTDOWN";
+      multLbl.classList.remove("crash-red");
+      multLbl.textContent = "1.00x";
+      statusNote.textContent = `NEXT ROUND IN ${data.seconds}s`;
+      barWrap.style.display = "block";
+      barInner.style.width = "100%";
+      particles = [];
+      updateHistoryUI(data.history);
+
+      [1, 2].forEach(id => {
+        if (panels[id].status === "QUEUED") panels[id].status = "ACTIVE";
+        else if (panels[id].status === "WON") panels[id].status = "IDLE";
+      });
+      updateButtonsUI();
+    });
+
+    socket.on('countdown_tick', (data) => {
+      statusNote.textContent = `NEXT ROUND IN ${data.sec
