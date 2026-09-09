@@ -9,7 +9,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// Cache disable taaki browser hamesha fresh code uthaye
+// Cache prevention
 app.use((req, res, next) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.set('Pragma', 'no-cache');
@@ -24,7 +24,7 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Database file for user accounts (users.json)
+// Database file (users.json)
 const DB_FILE = path.join(__dirname, 'users.json');
 let users = {};
 
@@ -40,24 +40,22 @@ function hashPassword(pass) {
   return crypto.createHash('sha256').update(pass).digest('hex');
 }
 
-// 1. SIGN UP API
+// 1. SIGNUP API
 app.post('/api/signup', (req, res) => {
   let email = (req.body.email || '').trim().toLowerCase();
   let password = (req.body.password || '').trim();
 
   if (!email || !email.includes('@') || !email.includes('.')) {
-    return res.status(400).json({ success: false, message: "Kripya sahi Email ID daalein (e.g. rahul@gmail.com)!" });
+    return res.status(400).json({ success: false, message: "Kripya valid Email ID daalein (e.g. yourname@gmail.com)" });
   }
-
-  if (!password || password.length < 3) {
-    return res.status(400).json({ success: false, message: "Password kam se kam 3 akshar ka hona chahiye!" });
+  if (!password || password.length < 4) {
+    return res.status(400).json({ success: false, message: "Password kam se kam 4 akshar ka hona chahiye!" });
   }
-
   if (users[email]) {
-    return res.status(400).json({ success: false, message: "Yeh Email pehle se registered hai! Kripya LOGIN karein." });
+    return res.status(400).json({ success: false, message: "Yeh Email pehle se registered hai! Login karein." });
   }
 
-  // Account create with ₹500 balance
+  // Create account with ₹500 free bonus
   users[email] = {
     passwordHash: hashPassword(password),
     balance: 500.00,
@@ -65,13 +63,10 @@ app.post('/api/signup', (req, res) => {
   };
   saveUsers();
 
-  console.log(`[NEW USER REGISTERED] Email: ${email} | Balance: ₹500`);
-
   return res.json({
     success: true,
     email: email,
-    balance: users[email].balance,
-    message: "Account safaltapoorvak ban gaya!"
+    balance: users[email].balance
   });
 });
 
@@ -81,19 +76,13 @@ app.post('/api/login', (req, res) => {
   let password = (req.body.password || '').trim();
 
   if (!email || !password) {
-    return res.status(400).json({ success: false, message: "Email aur Password dono bharna zaroori hai!" });
+    return res.status(400).json({ success: false, message: "Email aur Password dono bharein!" });
   }
 
   const user = users[email];
-  if (!user) {
-    return res.status(400).json({ success: false, message: "Yeh email registered nahi hai! Pehle SIGN UP karein." });
+  if (!user || user.passwordHash !== hashPassword(password)) {
+    return res.status(400).json({ success: false, message: "Galat Email ya Password!" });
   }
-
-  if (user.passwordHash !== hashPassword(password)) {
-    return res.status(400).json({ success: false, message: "Galat Password! Kripya sahi password daalein." });
-  }
-
-  console.log(`[USER LOGGED IN] Email: ${email}`);
 
   return res.json({
     success: true,
@@ -102,24 +91,25 @@ app.post('/api/login', (req, res) => {
   });
 });
 
-// Game Loop Variables
-let gameState = 'COUNTDOWN';
+// Real-Time Aviator Game Engine
+let gameState = 'COUNTDOWN'; // 'COUNTDOWN', 'FLYING', 'CRASHED'
 let multiplier = 1.00;
 let crashPoint = 1.00;
 let countdownSeconds = 5;
 let startTime = 0;
 let gameLoopInterval = null;
-let history = [1.54, 2.30, 5.00, 6.67, 1.62];
+let history = [1.84, 2.15, 1.20, 5.60, 1.45, 3.10];
 
 const onlineSockets = new Map();
 
 function generateCrashPoint() {
   const rand = Math.random();
-  if (rand < 0.08) return +(1.00 + Math.random() * 0.12).toFixed(2);
+  // 7% chance of instant crash between 1.00x and 1.15x
+  if (rand < 0.07) return +(1.00 + Math.random() * 0.15).toFixed(2);
   const e = 101;
   const h = Math.floor(Math.random() * 100);
   const crash = Math.floor((100 * e - h) / (e - h)) / 100;
-  return Math.max(1.02, +crash.toFixed(2));
+  return Math.max(1.05, +crash.toFixed(2));
 }
 
 function startCountdown() {
@@ -137,13 +127,20 @@ function startCountdown() {
     p.bet2.queued = false;
   });
 
-  io.emit('round_countdown', { seconds: countdownSeconds, history: history.slice(0, 10) });
+  io.emit('round_countdown', { 
+    seconds: countdownSeconds, 
+    history: history.slice(0, 15) 
+  });
   broadcastBets();
 
   const countTimer = setInterval(() => {
     countdownSeconds--;
-    if (countdownSeconds > 0) io.emit('countdown_tick', { seconds: countdownSeconds });
-    else { clearInterval(countTimer); startFlight(); }
+    if (countdownSeconds > 0) {
+      io.emit('countdown_tick', { seconds: countdownSeconds });
+    } else {
+      clearInterval(countTimer);
+      startFlight();
+    }
   }, 1000);
 }
 
@@ -151,17 +148,22 @@ function startFlight() {
   gameState = 'FLYING';
   crashPoint = generateCrashPoint();
   startTime = Date.now();
+
   io.emit('flight_start', { timestamp: startTime });
 
   gameLoopInterval = setInterval(() => {
     const elapsed = (Date.now() - startTime) / 1000;
-    multiplier = +(1.00 + 0.06 * Math.pow(elapsed, 1.7) + 0.04 * elapsed).toFixed(2);
+    // Authentic Aviator multiplier climb curve
+    multiplier = +(1.00 + 0.07 * Math.pow(elapsed, 1.75) + 0.05 * elapsed).toFixed(2);
 
     if (multiplier >= crashPoint) {
       clearInterval(gameLoopInterval);
       triggerCrash();
     } else {
-      io.emit('game_tick', { multiplier: multiplier, elapsed: elapsed });
+      io.emit('game_tick', { 
+        multiplier: multiplier, 
+        elapsed: elapsed 
+      });
     }
   }, 50);
 }
@@ -169,15 +171,19 @@ function startFlight() {
 function triggerCrash() {
   gameState = 'CRASHED';
   history.unshift(crashPoint);
-  if (history.length > 15) history.pop();
+  if (history.length > 20) history.pop();
 
   onlineSockets.forEach((p) => {
     if (p.bet1.active && !p.bet1.cashedOut) p.bet1.active = false;
     if (p.bet2.active && !p.bet2.cashedOut) p.bet2.active = false;
   });
 
-  io.emit('game_crash', { crashPoint: crashPoint, history: history.slice(0, 10) });
+  io.emit('game_crash', { 
+    crashPoint: crashPoint, 
+    history: history.slice(0, 15) 
+  });
   broadcastBets();
+
   setTimeout(startCountdown, 3000);
 }
 
@@ -185,8 +191,8 @@ function broadcastBets() {
   const activeBets = [];
   onlineSockets.forEach((p) => {
     if (!p.email) return;
-    const parts = p.email.split('@');
-    const masked = parts[0].slice(0, 3) + '***@' + (parts[1] || 'mail.com');
+    const name = p.email.split('@')[0];
+    const masked = name.length > 4 ? name.slice(0, 3) + '***' : name;
     if (p.bet1.active) activeBets.push({ user: masked, amount: p.bet1.amount, cashedOut: p.bet1.cashedOut });
     if (p.bet2.active) activeBets.push({ user: `${masked} (2)`, amount: p.bet2.amount, cashedOut: p.bet2.cashedOut });
   });
@@ -202,15 +208,26 @@ io.on('connection', (socket) => {
 
   io.emit('online_count', onlineSockets.size);
 
+  // CRITICAL: Immediate sync for newly connected players so game never freezes
+  socket.emit('init_sync', {
+    gameState,
+    multiplier,
+    elapsed: startTime > 0 ? (Date.now() - startTime) / 1000 : 0,
+    countdownSeconds,
+    history: history.slice(0, 15)
+  });
+
   socket.on('set_user_email', ({ email }) => {
     email = (email || '').trim().toLowerCase();
     if (email && users[email]) {
       const p = onlineSockets.get(socket.id);
       if (p) p.email = email;
+      socket.emit('balance_update', { balance: users[email].balance });
       broadcastBets();
     }
   });
 
+  // Place Bet
   socket.on('place_bet', ({ panel, amount }) => {
     const p = onlineSockets.get(socket.id);
     if (!p || !p.email || !users[p.email]) return;
@@ -218,8 +235,7 @@ io.on('connection', (socket) => {
     amount = parseFloat(amount);
     const user = users[p.email];
     if (isNaN(amount) || amount <= 0 || user.balance < amount) {
-      socket.emit('bet_error', { message: "Balance kam hai!" });
-      return;
+      return socket.emit('bet_error', { message: "Wallet me balance kam hai!" });
     }
 
     const betObj = panel === 1 ? p.bet1 : p.bet2;
@@ -231,10 +247,15 @@ io.on('connection', (socket) => {
     betObj.active = (gameState === 'COUNTDOWN');
     betObj.queued = (gameState !== 'COUNTDOWN');
 
-    socket.emit('bet_success', { panel, balance: user.balance, status: betObj.queued ? 'QUEUED' : 'ACTIVE' });
+    socket.emit('bet_success', { 
+      panel, 
+      balance: user.balance, 
+      status: betObj.queued ? 'QUEUED' : 'ACTIVE' 
+    });
     broadcastBets();
   });
 
+  // Cancel Bet
   socket.on('cancel_bet', ({ panel }) => {
     const p = onlineSockets.get(socket.id);
     if (!p || !p.email || !users[p.email]) return;
@@ -245,14 +266,17 @@ io.on('connection', (socket) => {
     if (betObj.queued || (betObj.active && gameState === 'COUNTDOWN')) {
       user.balance = +(user.balance + betObj.amount).toFixed(2);
       saveUsers();
+
       betObj.active = false;
       betObj.queued = false;
       betObj.amount = 0;
+
       socket.emit('cancel_success', { panel, balance: user.balance });
       broadcastBets();
     }
   });
 
+  // Cash Out
   socket.on('cash_out', ({ panel }) => {
     const p = onlineSockets.get(socket.id);
     if (!p || !p.email || !users[p.email] || gameState !== 'FLYING') return;
@@ -264,8 +288,14 @@ io.on('connection', (socket) => {
       const win = +(betObj.amount * multiplier).toFixed(2);
       user.balance = +(user.balance + win).toFixed(2);
       saveUsers();
+
       betObj.cashedOut = true;
-      socket.emit('cashout_success', { panel, winAmount: win, balance: user.balance, multiplier });
+      socket.emit('cashout_success', { 
+        panel, 
+        winAmount: win, 
+        balance: user.balance, 
+        multiplier 
+      });
       broadcastBets();
     }
   });
@@ -283,3 +313,4 @@ const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Aviator Server live on port ${PORT}`);
 });
+    
