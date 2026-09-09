@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -32,8 +32,10 @@
       border-radius: 16px;
       padding: 14px;
       box-shadow: 0 12px 40px rgba(0,0,0,0.8);
+      position: relative;
     }
 
+    /* Top Nav */
     .top-bar {
       display: flex;
       justify-content: space-between;
@@ -49,6 +51,12 @@
       letter-spacing: 1px;
     }
 
+    .user-info-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .badge {
       font-size: 11px;
       color: #2ed573;
@@ -61,13 +69,25 @@
     .wallet {
       background: #1a2130;
       border: 1px solid #2c3852;
-      padding: 6px 16px;
+      padding: 6px 14px;
       border-radius: 20px;
       font-weight: 700;
       color: #2ecc71;
       font-size: 14px;
     }
 
+    .logout-btn {
+      background: #232c40;
+      border: none;
+      color: #ff5252;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    /* Multiplier History */
     .history-row {
       display: flex;
       gap: 6px;
@@ -92,6 +112,7 @@
       border-color: #8b349b;
     }
 
+    /* Stage Canvas */
     .stage {
       position: relative;
       width: 100%;
@@ -137,6 +158,7 @@
       color: #ff2b44 !important;
     }
 
+    /* Bet Panels */
     .bet-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -260,8 +282,6 @@
       overflow-y: auto;
       font-size: 11px;
     }
-    .live-bets::-webkit-scrollbar { width: 4px; }
-    .live-bets::-webkit-scrollbar-thumb { background: #232c40; }
     .live-row { display: flex; justify-content: space-between; color: #78859b; padding: 2px 0; }
     .live-row.win { color: #2ecc71; }
 
@@ -269,15 +289,144 @@
       0% { box-shadow: 0 0 5px rgba(243, 156, 18, 0.4); }
       100% { box-shadow: 0 0 15px rgba(243, 156, 18, 0.85); }
     }
+
+    /* Auth Modal Overlay */
+    .auth-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(10, 13, 20, 0.92);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-radius: 16px;
+    }
+
+    .auth-card {
+      width: 90%;
+      max-width: 360px;
+      background: #161b29;
+      border: 1px solid #2b354d;
+      border-radius: 16px;
+      padding: 24px 20px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.8);
+      text-align: center;
+    }
+
+    .auth-card h3 {
+      font-size: 20px;
+      color: #ff2b44;
+      margin-bottom: 4px;
+      font-weight: 900;
+    }
+
+    .auth-card p {
+      font-size: 12px;
+      color: #7b889e;
+      margin-bottom: 18px;
+    }
+
+    .auth-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 8px;
+      background: #0f131e;
+      border: 1px solid #242e45;
+      color: #8c9bb2;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .tab-btn.active {
+      background: #ff2b44;
+      color: #fff;
+      border-color: #ff2b44;
+    }
+
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .auth-input {
+      background: #0a0d14;
+      border: 1px solid #273249;
+      color: #fff;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+    }
+    .auth-input:focus {
+      border-color: #ff2b44;
+    }
+
+    .auth-submit-btn {
+      background: linear-gradient(180deg, #2ecc71, #27ae60);
+      border: none;
+      color: #fff;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      text-transform: uppercase;
+      margin-top: 6px;
+    }
+
+    .auth-msg {
+      font-size: 12px;
+      margin-top: 10px;
+      color: #ff4757;
+      min-height: 16px;
+    }
   </style>
 </head>
 <body>
 
   <div class="app-container">
+    <!-- Auth Popup Modal -->
+    <div class="auth-overlay" id="auth-modal">
+      <div class="auth-card">
+        <h3>AVIATOR CLUB</h3>
+        <p>Login ya Sign Up karke start karein</p>
+
+        <div class="auth-tabs">
+          <button class="tab-btn active" id="tab-login" onclick="switchAuthTab('login')">LOGIN</button>
+          <button class="tab-btn" id="tab-signup" onclick="switchAuthTab('signup')">SIGN UP</button>
+        </div>
+
+        <form class="auth-form" onsubmit="submitAuth(event)">
+          <input type="text" id="auth-username" class="auth-input" placeholder="Username (User ID)" required autocomplete="off">
+          <input type="password" id="auth-password" class="auth-input" placeholder="Password" required>
+          <button type="submit" class="auth-submit-btn" id="auth-btn">LOGIN</button>
+        </form>
+
+        <div class="auth-msg" id="auth-msg"></div>
+      </div>
+    </div>
+
+    <!-- Top Navigation Bar -->
     <div class="top-bar">
       <div class="title">AVIATOR LIVE</div>
-      <div class="badge">● <span id="online-count">1</span> Online</div>
-      <div class="wallet">₹<span id="balance">0.00</span></div>
+      <div class="user-info-group">
+        <div class="badge">● <span id="online-count">1</span> Online</div>
+        <div class="wallet">
+          <span id="display-user" style="font-size: 11px; color: #8c9cb3; display: block; line-height: 1;">User</span>
+          ₹<span id="balance">0.00</span>
+        </div>
+        <button class="logout-btn" onclick="logout()">Exit</button>
+      </div>
     </div>
 
     <div class="history-row" id="history-box"></div>
@@ -360,6 +509,9 @@
     const historyBox = document.getElementById("history-box");
     const onlineEl = document.getElementById("online-count");
     const liveBetsBox = document.getElementById("live-bets");
+    const authModal = document.getElementById("auth-modal");
+    const authMsg = document.getElementById("auth-msg");
+    const displayUser = document.getElementById("display-user");
 
     let currentGameState = "COUNTDOWN";
     let serverMultiplier = 1.00;
@@ -368,6 +520,8 @@
     let propeller = 0;
     let planeX = 0, planeY = 0;
     let gridOffset = 0;
+    let authMode = 'login'; // 'login' or 'signup'
+    let currentUser = null;
 
     const panels = {
       1: { status: "IDLE", amount: 0, cashedOut: false },
@@ -381,18 +535,61 @@
     window.addEventListener("resize", resize);
     resize();
 
+    /* ================= AUTHENTICATION LOGIC ================= */
+    function switchAuthTab(mode) {
+      authMode = mode;
+      authMsg.textContent = "";
+      document.getElementById("tab-login").className = `tab-btn ${mode === 'login' ? 'active' : ''}`;
+      document.getElementById("tab-signup").className = `tab-btn ${mode === 'signup' ? 'active' : ''}`;
+      document.getElementById("auth-btn").textContent = mode === 'login' ? 'LOGIN' : 'REGISTER & GET ₹500';
+    }
+
+    function submitAuth(e) {
+      e.preventDefault();
+      const username = document.getElementById("auth-username").value;
+      const password = document.getElementById("auth-password").value;
+      authMsg.style.color = "#ff4757";
+      authMsg.textContent = "Processing...";
+
+      if (authMode === 'login') {
+        socket.emit('auth_login', { username, password });
+      } else {
+        socket.emit('auth_signup', { username, password });
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("aviator_user");
+      location.reload();
+    }
+
+    // Check saved session on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedUser = localStorage.getItem("aviator_user");
+      if (savedUser) {
+        socket.emit('auth_token_verify', { username: savedUser });
+      }
+    });
+
+    socket.on('auth_success', (data) => {
+      currentUser = data.username;
+      localStorage.setItem("aviator_user", data.username);
+      displayUser.textContent = data.username.toUpperCase();
+      balanceEl.textContent = data.balance.toFixed(2);
+      authModal.style.display = "none";
+    });
+
+    socket.on('auth_error', (data) => {
+      authMsg.style.color = "#ff4757";
+      authMsg.textContent = data.message;
+    });
+
+    /* ================= GAMEPLAY LISTENERS ================= */
     function addChip(id, val) {
       const input = document.getElementById(`amt-${id}`);
       input.value = (parseFloat(input.value) || 0) + val;
       updateButtonsUI();
     }
-
-    socket.on('init_sync', (data) => {
-      balanceEl.textContent = data.balance.toFixed(2);
-      onlineEl.textContent = data.onlineCount;
-      updateHistoryUI(data.history);
-      currentGameState = data.gameState;
-    });
 
     socket.on('online_count', (count) => {
       onlineEl.textContent = count;
@@ -490,6 +687,10 @@
     });
 
     function handleBtn(panelId) {
+      if (!currentUser) {
+        authModal.style.display = "flex";
+        return;
+      }
       const p = panels[panelId];
       const amount = parseFloat(document.getElementById(`amt-${panelId}`).value);
 
@@ -545,6 +746,7 @@
       ).join('');
     }
 
+    /* ================= PLANE & GRAPHICS ================= */
     function drawPlane(x, y, angle) {
       ctx.save();
       ctx.translate(x, y);
