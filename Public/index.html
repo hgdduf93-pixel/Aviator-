@@ -4,197 +4,110 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Aviator Live</title>
-  <!-- Direct Fast CDN Socket.io Library (Kabhi fail nahi hoti) -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body {
-      background: #0d1117;
-      color: #fff;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      padding: 10px;
-    }
-    .app {
-      width: 100%;
-      max-width: 420px;
-      background: #151a23;
-      border: 1px solid #232d3d;
-      border-radius: 16px;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-    }
-    /* Top Bar */
-    .header {
-      padding: 14px 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid #1f2735;
-      background: #12161f;
-    }
-    .brand {
-      color: #e52538;
-      font-weight: 900;
-      font-size: 20px;
-      font-style: italic;
-      line-height: 1.1;
-    }
-    .brand small { display: block; font-size: 11px; letter-spacing: 2px; }
-    .header-right { display: flex; gap: 8px; align-items: center; }
-    .badge-online {
-      background: rgba(34, 197, 94, 0.15);
-      border: 1px solid #22c55e;
-      color: #4ade80;
-      font-size: 12px;
-      font-weight: bold;
-      padding: 4px 10px;
-      border-radius: 20px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; }
-    .badge-bal {
-      background: #090c10;
-      border: 1px solid #283649;
-      color: #4ade80;
-      font-size: 13px;
-      font-weight: bold;
-      padding: 4px 12px;
-      border-radius: 20px;
-    }
+    body { background: #0c1017; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 8px; }
 
-    /* History */
-    .history-row {
-      display: flex;
-      gap: 6px;
-      padding: 8px 14px;
-      background: #0e121a;
-      overflow-x: auto;
-      border-bottom: 1px solid #1a2230;
-      white-space: nowrap;
-    }
-    .badge { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 10px; }
-    .b-blue { color: #38bdf8; background: rgba(56, 189, 248, 0.15); }
-    .b-purple { color: #c084fc; background: rgba(192, 132, 252, 0.15); }
-    .b-red { color: #f43f5e; background: rgba(244, 63, 94, 0.15); }
+    /* Auth Screen */
+    .auth-overlay { position: fixed; inset: 0; background: rgba(8, 11, 16, 0.95); z-index: 100; display: flex; justify-content: center; align-items: center; padding: 16px; }
+    .auth-card { width: 100%; max-width: 360px; background: #141b26; border: 1px solid #253347; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+    .auth-brand { font-size: 26px; font-weight: 900; font-style: italic; color: #e52538; text-align: center; }
+    .tabs { display: flex; background: #0a0d13; border-radius: 8px; padding: 4px; }
+    .tab-btn { flex: 1; padding: 8px; border: none; background: transparent; color: #8fa0b5; font-weight: bold; border-radius: 6px; cursor: pointer; }
+    .tab-btn.active { background: #e52538; color: #fff; }
+    .auth-field { display: flex; flex-direction: column; gap: 6px; }
+    .auth-field label { font-size: 12px; color: #8fa0b5; }
+    .auth-field input { padding: 12px; background: #0b1016; border: 1px solid #273549; border-radius: 8px; color: #fff; font-size: 15px; outline: none; }
+    .btn-submit { padding: 14px; background: #22c55e; border: none; border-radius: 8px; color: #052e16; font-size: 16px; font-weight: 900; cursor: pointer; }
+    .auth-err { font-size: 13px; color: #ef4444; text-align: center; min-height: 18px; }
 
-    /* Arena */
-    .arena {
-      position: relative;
-      height: 250px;
-      background: radial-gradient(circle at 30% 70%, #1a2230 0%, #090c12 100%);
-      overflow: hidden;
-    }
-    .grid-lines {
-      position: absolute;
-      inset: 0;
-      background-size: 30px 30px;
-      background-image: linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-                        linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-    }
+    /* Game Screen */
+    .app { width: 100%; max-width: 440px; background: #131924; border: 1px solid #1f2a3a; border-radius: 16px; display: none; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
+    .top-bar { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; background: #101520; border-bottom: 1px solid #1c2637; }
+    .brand { color: #e52538; font-weight: 900; font-size: 20px; font-style: italic; }
+    .user-pill { font-size: 12px; color: #94a3b8; font-weight: bold; }
+    .top-right { display: flex; gap: 8px; align-items: center; }
+    .bal-tag { background: #090c12; border: 1px solid #273549; color: #4ade80; font-size: 13px; font-weight: bold; padding: 4px 12px; border-radius: 20px; }
+    .btn-logout { background: #243144; border: none; color: #cbd5e1; padding: 5px 10px; border-radius: 14px; font-size: 11px; cursor: pointer; }
+
+    .history { display: flex; gap: 6px; padding: 8px 12px; background: #0b0f16; overflow-x: auto; border-bottom: 1px solid #182232; }
+    .pill { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 10px; }
+    .p-blue { color: #38bdf8; background: rgba(56, 189, 248, 0.15); }
+    .p-purple { color: #c084fc; background: rgba(192, 132, 252, 0.15); }
+    .p-red { color: #f43f5e; background: rgba(244, 63, 94, 0.15); }
+
+    .arena { position: relative; height: 260px; background: radial-gradient(circle at 35% 65%, #182333 0%, #090d14 100%); overflow: hidden; }
     canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
 
-    #plane {
-      position: absolute;
-      width: 70px;
-      height: 42px;
-      z-index: 2;
-      transform: translate(-50%, -50%);
-      filter: drop-shadow(0 0 10px rgba(229, 37, 56, 0.8));
-    }
+    #airplane { position: absolute; width: 75px; height: 45px; z-index: 2; transform: translate(-50%, -50%); filter: drop-shadow(0 0 10px rgba(229, 37, 56, 0.8)); opacity: 0; }
     .prop { transform-origin: 89px 28px; animation: spin 0.08s linear infinite; }
     @keyframes spin { 0% { transform: scaleY(1); } 50% { transform: scaleY(-0.1); } 100% { transform: scaleY(1); } }
 
-    .hud {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      text-align: center;
-      z-index: 3;
-      pointer-events: none;
-    }
-    .hud-mult { font-size: 58px; font-weight: 900; letter-spacing: -1px; }
-    .hud-sub { font-size: 13px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; color: #8fa0b5; }
+    .hud { position: absolute; top: 48%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 3; pointer-events: none; }
+    .mult { font-size: 64px; font-weight: 900; letter-spacing: -2px; }
+    .sub { font-size: 14px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; color: #94a3b8; }
     .crashed { color: #e52538 !important; }
 
-    /* Control Panels */
-    .controls { padding: 12px; display: flex; flex-direction: column; gap: 10px; background: #121620; }
-    .panel-box {
-      background: #171d27;
-      border: 1px solid #263244;
-      border-radius: 12px;
-      padding: 10px 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .panel-top { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #8fa0b5; font-weight: bold; }
-    .panel-top label { display: flex; align-items: center; gap: 4px; }
-    .auto-inp { width: 50px; background: #0c1017; border: 1px solid #2a384c; color: #fff; text-align: center; border-radius: 4px; font-size: 11px; padding: 2px; }
-
-    .panel-main { display: flex; gap: 10px; height: 50px; }
-    .stepper {
-      flex: 1;
-      background: #0a0d13;
-      border: 1px solid #263447;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      overflow: hidden;
-    }
-    .stepper button { width: 34px; height: 100%; background: #192230; border: none; color: #fff; font-size: 18px; cursor: pointer; }
+    .controls { padding: 12px; display: flex; flex-direction: column; gap: 10px; background: #101520; }
+    .card { background: #161d29; border: 1px solid #233044; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+    .card-head { display: flex; justify-content: space-between; font-size: 11px; color: #8fa0b5; font-weight: bold; }
+    .card-row { display: flex; gap: 10px; height: 48px; }
+    .stepper { flex: 1; display: flex; background: #0b0e14; border: 1px solid #243347; border-radius: 8px; overflow: hidden; }
+    .stepper button { width: 34px; background: #192332; border: none; color: #fff; font-size: 18px; cursor: pointer; }
     .stepper input { flex: 1; background: transparent; border: none; text-align: center; color: #fff; font-size: 16px; font-weight: bold; outline: none; }
 
-    .btn-act {
-      width: 125px;
-      border: none;
-      border-radius: 8px;
-      font-weight: 900;
-      font-size: 17px;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
+    .btn-act { width: 125px; border: none; border-radius: 8px; font-size: 18px; font-weight: 900; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .btn-bet { background: #22c55e; color: #052e16; }
-    .btn-cashout { background: #f59e0b; color: #451a03; }
+    .btn-cashout { background: #f59e0b; color: #451a03; box-shadow: 0 0 14px rgba(245, 158, 11, 0.4); }
     .btn-cancel { background: #ef4444; color: #fff; }
-
-    .footer-status {
-      padding: 8px;
-      text-align: center;
-      font-size: 12px;
-      color: #64748b;
-      border-top: 1px solid #18202d;
-    }
   </style>
 </head>
 <body>
 
-<div class="app">
-  <div class="header">
-    <div class="brand">AVIATOR<small>LIVE</small></div>
-    <div class="header-right">
-      <div class="badge-online"><div class="dot"></div> <span id="onlineVal">1</span> Online</div>
-      <div class="badge-bal">₹ <span id="balVal">1000.00</span></div>
+<!-- Auth Modal -->
+<div class="auth-overlay" id="authModal">
+  <div class="auth-card">
+    <div class="auth-brand">✈ AVIATOR</div>
+    <div class="tabs">
+      <button class="tab-btn active" id="tabLogin" onclick="switchTab('login')">LOGIN</button>
+      <button class="tab-btn" id="tabSignup" onclick="switchTab('signup')">SIGN UP</button>
+    </div>
+
+    <div class="auth-field">
+      <label>Username</label>
+      <input type="text" id="authUname" placeholder="Username daalein">
+    </div>
+
+    <div class="auth-field">
+      <label>Password</label>
+      <input type="password" id="authPass" placeholder="Password daalein">
+    </div>
+
+    <div class="auth-err" id="authErr"></div>
+    <button class="btn-submit" id="authSubmitBtn" onclick="handleAuth()">LOGIN KAREIN</button>
+  </div>
+</div>
+
+<!-- Main Game Area -->
+<div class="app" id="gameApp">
+  <div class="top-bar">
+    <div>
+      <div class="brand">AVIATOR</div>
+      <div class="user-pill" id="userDisplay">Player</div>
+    </div>
+    <div class="top-right">
+      <div class="bal-tag">₹ <span id="bal">0.00</span></div>
+      <button class="btn-logout" onclick="logout()">Logout</button>
     </div>
   </div>
 
-  <div class="history-row" id="historyRow"></div>
+  <div class="history" id="hist"></div>
 
   <div class="arena" id="arena">
-    <div class="grid-lines"></div>
     <canvas id="cvs"></canvas>
 
-    <svg id="plane" viewBox="0 0 100 60">
+    <svg id="airplane" viewBox="0 0 100 60">
       <polygon points="10,29 0,25 0,33" fill="#ff7700"/>
       <path d="M15,29 C30,22 65,22 85,27 C92,29 95,31 85,33 C65,38 30,38 15,31 Z" fill="#e52538"/>
       <path d="M42,26 L60,8 L68,8 L54,26 Z" fill="#b91c1c"/>
@@ -205,199 +118,218 @@
     </svg>
 
     <div class="hud">
-      <div id="multText" class="hud-mult">1.00x</div>
-      <div id="subText" class="hud-sub">WAITING...</div>
+      <div id="mult" class="mult">1.00x</div>
+      <div id="sub" class="sub">STARTING...</div>
     </div>
   </div>
 
   <div class="controls">
-    <!-- Panel 1 -->
-    <div class="panel-box">
-      <div class="panel-top">
-        <span>PANEL 1</span>
-        <label><input type="checkbox" id="auto1"> Auto: <input type="number" id="autoVal1" value="2.00" step="0.1" class="auto-inp">x</label>
-      </div>
-      <div class="panel-main">
+    <!-- Bet Panel 1 -->
+    <div class="card">
+      <div class="card-head"><span>BET PANEL 1</span></div>
+      <div class="card-row">
         <div class="stepper">
-          <button onclick="changeBet(1, -10)">-</button>
-          <input type="number" id="bet1" value="50">
-          <button onclick="changeBet(1, 10)">+</button>
+          <button onclick="adj(1, -10)">-</button>
+          <input type="number" id="inp1" value="50">
+          <button onclick="adj(1, 10)">+</button>
         </div>
-        <button id="btn1" class="btn-act btn-bet" onclick="handleBtn(1)">
-          <span>BET</span><small style="font-size: 11px;">₹50</small>
+        <button id="btn1" class="btn-act btn-bet" onclick="doAction(1)">
+          <span>BET</span><small style="font-size:11px;">₹50</small>
         </button>
       </div>
     </div>
 
-    <!-- Panel 2 -->
-    <div class="panel-box">
-      <div class="panel-top">
-        <span>PANEL 2</span>
-        <label><input type="checkbox" id="auto2"> Auto: <input type="number" id="autoVal2" value="1.50" step="0.1" class="auto-inp">x</label>
-      </div>
-      <div class="panel-main">
+    <!-- Bet Panel 2 -->
+    <div class="card">
+      <div class="card-head"><span>BET PANEL 2</span></div>
+      <div class="card-row">
         <div class="stepper">
-          <button onclick="changeBet(2, -10)">-</button>
-          <input type="number" id="bet2" value="100">
-          <button onclick="changeBet(2, 10)">+</button>
+          <button onclick="adj(2, -10)">-</button>
+          <input type="number" id="inp2" value="100">
+          <button onclick="adj(2, 10)">+</button>
         </div>
-        <button id="btn2" class="btn-act btn-bet" onclick="handleBtn(2)">
-          <span>BET</span><small style="font-size: 11px;">₹100</small>
+        <button id="btn2" class="btn-act btn-bet" onclick="doAction(2)">
+          <span>BET</span><small style="font-size:11px;">₹100</small>
         </button>
       </div>
     </div>
   </div>
-
-  <div class="footer-status" id="footerMsg">Connecting to live game...</div>
 </div>
 
 <script>
-  // Automatic HTTPS & WebSocket selector
-  const socket = io({
-    transports: ['websocket', 'polling'],
-    reconnection: true,
-    reconnectionDelay: 1000
-  });
-
-  let balance = 1000.00;
+  let mode = 'login';
+  let token = localStorage.getItem('aviator_tok');
+  let socket = null;
+  let balance = 0.00;
   let currentMultiplier = 1.00;
-  let currentState = 'WAITING';
+  let gameState = 'WAITING';
 
-  const myBets = {
-    1: { active: false, amount: 0, cashed: false },
-    2: { active: false, amount: 0, cashed: false }
-  };
+  const bets = { 1: { active: false, amt: 0 }, 2: { active: false, amt: 0 } };
 
-  const arena = document.getElementById("arena");
   const cvs = document.getElementById("cvs");
   const ctx = cvs.getContext("2d");
-  const plane = document.getElementById("plane");
-  const multText = document.getElementById("multText");
-  const subText = document.getElementById("subText");
-  const balVal = document.getElementById("balVal");
-  const onlineVal = document.getElementById("onlineVal");
-  const historyRow = document.getElementById("historyRow");
-  const footerMsg = document.getElementById("footerMsg");
+  const arena = document.getElementById("arena");
+  const plane = document.getElementById("airplane");
+  const multText = document.getElementById("mult");
+  const subText = document.getElementById("sub");
+  const histEl = document.getElementById("hist");
+  const balEl = document.getElementById("bal");
+  const userDisplay = document.getElementById("userDisplay");
 
-  function resizeCvs() {
+  function switchTab(m) {
+    mode = m;
+    document.getElementById("authErr").textContent = "";
+    document.getElementById("tabLogin").className = m === 'login' ? 'tab-btn active' : 'tab-btn';
+    document.getElementById("tabSignup").className = m === 'signup' ? 'tab-btn active' : 'tab-btn';
+    document.getElementById("authSubmitBtn").textContent = m === 'login' ? 'LOGIN KAREIN' : 'SIGN UP (FREE ₹1,000)';
+  }
+
+  async function handleAuth() {
+    const username = document.getElementById("authUname").value.trim();
+    const password = document.getElementById("authPass").value;
+    const errEl = document.getElementById("authErr");
+    errEl.textContent = "";
+
+    try {
+      const res = await fetch(mode === 'login' ? '/api/login' : '/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        errEl.textContent = data.error || "Galti hui!";
+        return;
+      }
+      localStorage.setItem('aviator_tok', data.token);
+      token = data.token;
+      startGame(data.user);
+    } catch(e) {
+      errEl.textContent = "Server se connect nahi ho saka.";
+    }
+  }
+
+  async function checkToken() {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) startGame(data.user);
+      else localStorage.removeItem('aviator_tok');
+    } catch(e) {}
+  }
+  checkToken();
+
+  function logout() {
+    localStorage.removeItem('aviator_tok');
+    location.reload();
+  }
+
+  function startGame(user) {
+    document.getElementById("authModal").style.display = "none";
+    document.getElementById("gameApp").style.display = "flex";
+    userDisplay.textContent = user.username;
+    balance = parseFloat(user.balance);
+    balEl.textContent = balance.toFixed(2);
+
     cvs.width = arena.clientWidth;
     cvs.height = arena.clientHeight;
+    window.addEventListener('resize', () => { cvs.width = arena.clientWidth; cvs.height = arena.clientHeight; });
+
+    connectSocket();
   }
-  window.addEventListener('resize', resizeCvs);
-  resizeCvs();
 
-  // Socket Connection Status Listeners
-  socket.on('connect', () => {
-    footerMsg.textContent = "Connected to Live Server!";
-    subText.textContent = "SYNCING...";
-  });
+  function connectSocket() {
+    socket = io({ transports: ['polling', 'websocket'] });
+    socket.on('connect', () => socket.emit('auth_socket', token));
+    socket.on('balance_update', (b) => { balance = parseFloat(b); balEl.textContent = balance.toFixed(2); });
+    socket.on('init_sync', d => renderHist(d.history));
 
-  socket.on('disconnect', () => {
-    subText.textContent = "CONNECTING...";
-    footerMsg.textContent = "Reconnecting...";
-  });
-
-  socket.on('online_count', (cnt) => {
-    onlineVal.textContent = cnt;
-  });
-
-  socket.on('sync_init', (d) => {
-    currentState = d.state;
-    renderHistory(d.history);
-    if (d.state === 'FLYING') {
-      subText.style.display = "none";
-      plane.style.opacity = "1";
-    }
-  });
-
-  socket.on('waiting_tick', (d) => {
-    currentState = 'WAITING';
-    multText.style.display = "none";
-    subText.style.display = "block";
-    subText.textContent = `WAITING: ${d.countdown}s`;
-    subText.className = "hud-sub";
-    plane.style.opacity = "0";
-    ctx.clearRect(0, 0, cvs.width, cvs.height);
-    footerMsg.textContent = "Place your bets for next round";
-  });
-
-  socket.on('game_state', (d) => {
-    currentState = d.state;
-    if (d.state === 'WAITING') {
+    socket.on('tick_waiting', (d) => {
+      gameState = 'WAITING';
       multText.style.display = "none";
       subText.style.display = "block";
+      subText.textContent = "WAITING: " + d.countdown + "s";
       plane.style.opacity = "0";
       ctx.clearRect(0, 0, cvs.width, cvs.height);
-    } else if (d.state === 'FLYING') {
+    });
+
+    socket.on('state_waiting', (d) => {
+      gameState = 'WAITING';
+      multText.style.display = "none";
+      subText.style.display = "block";
+      subText.textContent = "WAITING: " + d.countdown + "s";
+      plane.style.opacity = "0";
+      ctx.clearRect(0, 0, cvs.width, cvs.height);
+    });
+
+    socket.on('state_flying', () => {
+      gameState = 'FLYING';
       subText.style.display = "none";
       multText.style.display = "block";
-      multText.className = "hud-mult";
+      multText.className = "mult";
       plane.style.opacity = "1";
-      footerMsg.textContent = "Plane is flying... Cash out!";
 
       [1, 2].forEach(id => {
-        if (myBets[id].active) {
-          myBets[id].cashed = false;
-          updateBtn(id, "CASHOUT", myBets[id].amount);
-        }
+        if (bets[id].active) setBtn(id, "CASHOUT", bets[id].amt);
       });
-    } else if (d.state === 'CRASHED') {
+    });
+
+    socket.on('tick_multiplier', (d) => {
+      if (gameState !== 'FLYING') return;
+      currentMultiplier = d.multiplier;
+      multText.textContent = currentMultiplier.toFixed(2) + "x";
+
+      [1, 2].forEach(id => {
+        if (bets[id].active) setBtn(id, "CASHOUT", (bets[id].amt * currentMultiplier).toFixed(2));
+      });
+
+      drawFlight(currentMultiplier);
+    });
+
+    socket.on('state_crashed', (d) => {
+      gameState = 'CRASHED';
       multText.textContent = d.crashPoint.toFixed(2) + "x";
-      multText.className = "hud-mult crashed";
+      multText.className = "mult crashed";
       subText.textContent = "FLEW AWAY!";
-      subText.className = "hud-sub crashed";
+      subText.className = "sub crashed";
       subText.style.display = "block";
 
       plane.style.transition = "all 0.4s ease-out";
-      plane.style.left = `${cvs.width + 100}px`;
-      plane.style.top = "-30px";
+      plane.style.left = (cvs.width + 120) + "px";
+      plane.style.top = "-40px";
 
-      renderHistory(d.history);
+      renderHist(d.history);
 
       [1, 2].forEach(id => {
-        myBets[id].active = false;
-        updateBtn(id, "BET", document.getElementById(`bet${id}`).value);
+        bets[id].active = false;
+        setBtn(id, "BET", document.getElementById("inp" + id).value);
       });
 
       setTimeout(() => plane.style.transition = "opacity 0.2s", 400);
-      footerMsg.textContent = "Round crashed! Preparing next round...";
-    }
-  });
-
-  socket.on('flight_tick', (d) => {
-    if (currentState !== 'FLYING') return;
-    currentMultiplier = d.multiplier;
-    multText.textContent = currentMultiplier.toFixed(2) + "x";
-
-    [1, 2].forEach(id => {
-      if (myBets[id].active && !myBets[id].cashed) {
-        const liveWin = (myBets[id].amount * currentMultiplier).toFixed(2);
-        updateBtn(id, "CASHOUT", liveWin);
-
-        // Auto Cashout Logic
-        const isAuto = document.getElementById(`auto${id}`).checked;
-        const autoLimit = parseFloat(document.getElementById(`autoVal${id}`).value);
-        if (isAuto && currentMultiplier >= autoLimit) {
-          cashOut(id);
-        }
-      }
     });
 
-    drawTrail(currentMultiplier);
-  });
+    socket.on('cashout_success', (d) => {
+      bets[d.betId].active = false;
+      setBtn(d.betId, "BET", document.getElementById("inp" + d.betId).value);
+    });
+  }
 
-  function drawTrail(m) {
+  function drawFlight(m) {
     ctx.clearRect(0, 0, cvs.width, cvs.height);
-    const startX = 30;
-    const startY = cvs.height - 30;
-    const progress = Math.min((m - 1.0) / 7.0, 1.0);
+    const startX = 35;
+    const startY = cvs.height - 35;
+    const p = Math.min((m - 1.0) / 7.0, 1.0);
 
-    const endX = startX + (cvs.width - 90) * Math.pow(progress, 0.85);
-    const endY = startY - (cvs.height - 60) * Math.pow(progress, 1.4);
+    const endX = startX + (cvs.width - 110) * Math.pow(p, 0.85);
+    const endY = startY - (cvs.height - 70) * Math.pow(p, 1.35);
     const cpX = startX + (endX - startX) * 0.5;
     const cpY = startY;
 
-    // Red Gradient Fill
     const grad = ctx.createLinearGradient(0, endY, 0, cvs.height);
     grad.addColorStop(0, "rgba(229, 37, 56, 0.35)");
     grad.addColorStop(1, "rgba(229, 37, 56, 0)");
@@ -408,81 +340,62 @@
     ctx.fillStyle = grad;
     ctx.fill();
 
-    // Red Path Line
     ctx.beginPath();
     ctx.moveTo(startX, startY);
     ctx.quadraticCurveTo(cpX, cpY, endX, endY);
     ctx.strokeStyle = "#e52538";
-    ctx.lineWidth = 3.5;
+    ctx.lineWidth = 4;
     ctx.stroke();
 
     const angle = Math.atan2(endY - cpY, endX - cpX) * (180 / Math.PI) * 0.45;
-    plane.style.left = `${endX}px`;
-    plane.style.top = `${endY}px`;
-    plane.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+    plane.style.left = endX + "px";
+    plane.style.top = endY + "px";
+    plane.style.transform = "translate(-50%, -50%) rotate(" + angle + "deg)";
   }
 
-  function renderHistory(hist) {
-    historyRow.innerHTML = "";
-    hist.forEach(v => {
-      const sp = document.createElement("span");
-      sp.className = "badge " + (v >= 10 ? "b-red" : v >= 2 ? "b-purple" : "b-blue");
-      sp.textContent = parseFloat(v).toFixed(2) + "x";
-      historyRow.appendChild(sp);
+  function renderHist(list) {
+    histEl.innerHTML = "";
+    list.forEach(v => {
+      const s = document.createElement("span");
+      s.className = "pill " + (v >= 10 ? "p-red" : v >= 2 ? "p-purple" : "p-blue");
+      s.textContent = parseFloat(v).toFixed(2) + "x";
+      histEl.appendChild(s);
     });
   }
 
-  function handleBtn(id) {
-    if (currentState === 'FLYING' && myBets[id].active && !myBets[id].cashed) {
-      cashOut(id);
-    } else if (myBets[id].active) {
-      // Cancel
-      balance += myBets[id].amount;
-      balVal.textContent = balance.toFixed(2);
-      myBets[id].active = false;
-      updateBtn(id, "BET", document.getElementById(`bet${id}`).value);
+  function doAction(id) {
+    if (gameState === 'FLYING' && bets[id].active) {
+      socket.emit('request_cashout', { betId: id });
     } else {
-      // Place Bet
-      const amt = parseFloat(document.getElementById(`bet${id}`).value);
-      if (amt > balance || isNaN(amt) || amt <= 0) return alert("Paryapt balance nahi hai!");
+      const amt = parseFloat(document.getElementById("inp" + id).value);
+      if (amt > balance || isNaN(amt) || amt <= 0) return alert("Balance kam hai!");
 
-      balance -= amt;
-      balVal.textContent = balance.toFixed(2);
-      myBets[id].amount = amt;
-      myBets[id].active = true;
-
-      updateBtn(id, currentState === 'WAITING' ? "CANCEL" : "BET", amt);
+      bets[id].amt = amt;
+      bets[id].active = true;
+      setBtn(id, gameState === 'WAITING' ? "CANCEL" : "BET", amt);
+      socket.emit('place_bet', { betId: id, amount: amt });
     }
   }
 
-  function cashOut(id) {
-    myBets[id].cashed = true;
-    myBets[id].active = false;
-    const win = parseFloat((myBets[id].amount * currentMultiplier).toFixed(2));
-    balance += win;
-    balVal.textContent = balance.toFixed(2);
-    updateBtn(id, "BET", document.getElementById(`bet${id}`).value);
-  }
-
-  function updateBtn(id, type, val) {
-    const btn = document.getElementById(`btn${id}`);
-    btn.className = "btn-act";
+  function setBtn(id, type, val) {
+    const b = document.getElementById("btn" + id);
+    b.className = "btn-act";
     if (type === "BET") {
-      btn.classList.add("btn-bet");
-      btn.innerHTML = `<span>BET</span><small style="font-size:11px;">₹${val}</small>`;
+      b.classList.add("btn-bet");
+      b.innerHTML = "<span>BET</span><small style='font-size:11px;'>₹" + val + "</small>";
     } else if (type === "CASHOUT") {
-      btn.classList.add("btn-cashout");
-      btn.innerHTML = `<span>CASH OUT</span><small style="font-size:11px;">₹${val}</small>`;
+      b.classList.add("btn-cashout");
+      b.innerHTML = "<span>CASH OUT</span><small style='font-size:11px;'>₹" + val + "</small>";
     } else if (type === "CANCEL") {
-      btn.classList.add("btn-cancel");
-      btn.innerHTML = `<span>CANCEL</span><small style="font-size:11px;">₹${val}</small>`;
+      b.classList.add("btn-cancel");
+      b.innerHTML = "<span>WAITING</span><small style='font-size:11px;'>₹" + val + "</small>";
     }
   }
 
-  function changeBet(id, d) {
-    const el = document.getElementById(`bet${id}`);
-    el.value = Math.max(10, (parseFloat(el.value) || 0) + d);
-    if (!myBets[id].active) updateBtn(id, "BET", el.value);
+  function adj(id, delta) {
+    const el = document.getElementById("inp" + id);
+    el.value = Math.max(10, (parseFloat(el.value) || 0) + delta);
+    if (!bets[id].active) setBtn(id, "BET", el.value);
   }
 </script>
 </body>
