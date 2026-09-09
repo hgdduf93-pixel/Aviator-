@@ -3,16 +3,28 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// JSON Body Parser for instant API
+// Cache disable
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
+
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// Database file
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Database file for user accounts (users.json)
 const DB_FILE = path.join(__dirname, 'users.json');
 let users = {};
 
@@ -24,64 +36,62 @@ function saveUsers() {
   try { fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2)); } catch (err) {}
 }
 
-// In-Memory OTP Store
-const otpStore = new Map();
+function hashPassword(pass) {
+  return crypto.createHash('sha256').update(pass).digest('hex');
+}
 
-// REST API 1: Send OTP (Super Fast - No Socket lag)
-app.post('/api/send-otp', (req, res) => {
-  const phone = (req.body.phone || '').trim();
-  if (!phone || phone.length !== 10 || isNaN(phone)) {
-    return res.status(400).json({ success: false, message: "Kripya valid 10-digit mobile number daalein!" });
+// 1. SIGN UP API (Email + Password)
+app.post('/api/signup', (req, res) => {
+  const email = (req.body.email || '').trim().toLowerCase();
+  const password = (req.body.password || '').trim();
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!email || !emailRegex.test(email)) {
+    return res.status(400).json({ success: false, message: "Kripya sahi Email ID daalein (e.g. name@gmail.com)!" });
   }
 
-  // 6-digit real OTP
-  const generatedOTP = Math.floor(100000 + Math.random() * 900000).toString();
-  otpStore.set(phone, {
-    otp: generatedOTP,
-    expiresAt: Date.now() + 5 * 60 * 1000
-  });
+  if (!password || password.length < 4) {
+    return res.status(400).json({ success: false, message: "Password kam se kam 4 akshar ka hona chahiye!" });
+  }
 
-  console.log(`>>> OTP GENERATED FOR +91 ${phone}: ${generatedOTP} <<<`);
+  if (users[email]) {
+    return res.status(400).json({ success: false, message: "Yeh Email pehle se registered hai! Login karein." });
+  }
+
+  // Account creation with ₹500 bonus
+  users[email] = {
+    passwordHash: hashPassword(password),
+    balance: 500.00,
+    registeredAt: new Date().toISOString()
+  };
+  saveUsers();
 
   return res.json({
     success: true,
-    phone: phone,
-    otp: generatedOTP, // Screen banner me dikhane ke liye
-    message: "OTP successfully sent!"
+    email: email,
+    balance: users[email].balance,
+    message: "Registration safal raha! ₹500 bonus add ho gaya."
   });
 });
 
-// REST API 2: Verify OTP
-app.post('/api/verify-otp', (req, res) => {
-  const phone = (req.body.phone || '').trim();
-  const otp = (req.body.otp || '').trim();
+// 2. LOGIN API (Email + Password)
+app.post('/api/login', (req, res) => {
+  const email = (req.body.email || '').trim().toLowerCase();
+  const password = (req.body.password || '').trim();
 
-  const record = otpStore.get(phone);
-  if (!record) {
-    return res.status(400).json({ success: false, message: "Pehle SEND OTP par click karein!" });
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: "Email aur Password dono daalein!" });
   }
 
-  if (Date.now() > record.expiresAt) {
-    otpStore.delete(phone);
-    return res.status(400).json({ success: false, message: "OTP expire ho gaya hai, dobara try karein!" });
-  }
-
-  if (record.otp !== otp) {
-    return res.status(400).json({ success: false, message: "Galat OTP! Kripya sahi OTP daalein." });
-  }
-
-  otpStore.delete(phone);
-
-  // User save with ₹500 bonus
-  if (!users[phone]) {
-    users[phone] = { balance: 500.00, registeredAt: new Date().toISOString() };
-    saveUsers();
+  const user = users[email];
+  if (!user || user.passwordHash !== hashPassword(password)) {
+    return res.status(400).json({ success: false, message: "Galat Email ya Password!" });
   }
 
   return res.json({
     success: true,
-    phone: phone,
-    balance: users[phone].balance
+    email: email,
+    balance: user.balance
   });
 });
 
@@ -167,8 +177,9 @@ function triggerCrash() {
 function broadcastBets() {
   const activeBets = [];
   onlineSockets.forEach((p) => {
-    if (!p.phone) return;
-    const masked = p.phone.slice(0, 2) + '******' + p.phone.slice(-2);
+    if (!p.email) return;
+    const parts = p.email.split('@');
+    const masked = parts[0].slice(0, 3) + '***@' + (parts[1] || 'mail.com');
     if (p.bet1.active) activeBets.push({ user: masked, amount: p.bet1.amount, cashedOut: p.bet1.cashedOut });
     if (p.bet2.active) activeBets.push({ user: `${masked} (2)`, amount: p.bet2.amount, cashedOut: p.bet2.cashedOut });
   });
@@ -177,27 +188,27 @@ function broadcastBets() {
 
 io.on('connection', (socket) => {
   onlineSockets.set(socket.id, {
-    phone: null,
+    email: null,
     bet1: { amount: 0, active: false, queued: false, cashedOut: false },
     bet2: { amount: 0, active: false, queued: false, cashedOut: false }
   });
 
   io.emit('online_count', onlineSockets.size);
 
-  socket.on('set_user_phone', ({ phone }) => {
-    if (phone && users[phone]) {
+  socket.on('set_user_email', ({ email }) => {
+    if (email && users[email]) {
       const p = onlineSockets.get(socket.id);
-      if (p) p.phone = phone;
+      if (p) p.email = email;
       broadcastBets();
     }
   });
 
   socket.on('place_bet', ({ panel, amount }) => {
     const p = onlineSockets.get(socket.id);
-    if (!p || !p.phone || !users[p.phone]) return;
+    if (!p || !p.email || !users[p.email]) return;
 
     amount = parseFloat(amount);
-    const user = users[p.phone];
+    const user = users[p.email];
     if (isNaN(amount) || amount <= 0 || user.balance < amount) {
       socket.emit('bet_error', { message: "Balance kam hai!" });
       return;
@@ -218,9 +229,9 @@ io.on('connection', (socket) => {
 
   socket.on('cancel_bet', ({ panel }) => {
     const p = onlineSockets.get(socket.id);
-    if (!p || !p.phone || !users[p.phone]) return;
+    if (!p || !p.email || !users[p.email]) return;
 
-    const user = users[p.phone];
+    const user = users[p.email];
     const betObj = panel === 1 ? p.bet1 : p.bet2;
 
     if (betObj.queued || (betObj.active && gameState === 'COUNTDOWN')) {
@@ -236,9 +247,9 @@ io.on('connection', (socket) => {
 
   socket.on('cash_out', ({ panel }) => {
     const p = onlineSockets.get(socket.id);
-    if (!p || !p.phone || !users[p.phone] || gameState !== 'FLYING') return;
+    if (!p || !p.email || !users[p.email] || gameState !== 'FLYING') return;
 
-    const user = users[p.phone];
+    const user = users[p.email];
     const betObj = panel === 1 ? p.bet1 : p.bet2;
 
     if (betObj.active && !betObj.cashedOut) {
