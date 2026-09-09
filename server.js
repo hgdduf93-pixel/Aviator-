@@ -1,202 +1,230 @@
-require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const session = require('express-session');
-const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const FacebookStrategy = require('passport-facebook').Strategy;
 const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, {
+  cors: { origin: "*" }
+});
 
-const PORT = process.env.PORT || 3000;
-
-// Session setup
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'liquid_aviator_super_secret',
-  resave: false,
-  saveUninitialized: true
-}));
-
-app.use(passport.initialize());
-app.use(passport.session());
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json());
 
-// In-Memory User Store (Demo / Production ke liye MongoDB/Postgres use kar sakte hain)
-const users = {};
-
-passport.serializeUser((user, done) => done(null, user.id));
-passport.deserializeUser((id, done) => done(null, users[id]));
-
-// Google Strategy
-if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-  passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "/auth/google/callback"
-  }, (accessToken, refreshToken, profile, done) => {
-    let user = users[profile.id] || {
-      id: profile.id,
-      name: profile.displayName,
-      avatar: profile.photos?.[0]?.value || '',
-      balance: 1000.00
-    };
-    users[profile.id] = user;
-    return done(null, user);
-  }));
-}
-
-// Facebook Strategy
-if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
-  passport.use(new FacebookStrategy({
-    clientID: process.env.FACEBOOK_APP_ID,
-    clientSecret: process.env.FACEBOOK_APP_SECRET,
-    callbackURL: "/auth/facebook/callback",
-    profileFields: ['id', 'displayName', 'photos']
-  }, (accessToken, refreshToken, profile, done) => {
-    let user = users[profile.id] || {
-      id: profile.id,
-      name: profile.displayName,
-      avatar: profile.photos?.[0]?.value || '',
-      balance: 1000.00
-    };
-    users[profile.id] = user;
-    return done(null, user);
-  }));
-}
-
-// Auth Routes
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile'] }));
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => res.redirect('/'));
-
-app.get('/auth/facebook', passport.authenticate('facebook'));
-app.get('/auth/facebook/callback', passport.authenticate('facebook', { failureRedirect: '/' }), (req, res) => res.redirect('/'));
-
-// Guest Login (Bina OAuth setup ke turant test karne ke liye)
-app.post('/auth/guest', (req, res) => {
-  const guestId = 'guest_' + Math.random().toString(36).substring(2, 9);
-  const user = {
-    id: guestId,
-    name: req.body.name || 'Captain ' + guestId.slice(-3),
-    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=' + guestId,
-    balance: 1000.00
-  };
-  users[guestId] = user;
-  req.session.userId = guestId;
-  res.json({ success: true, user });
-});
-
-app.get('/auth/user', (req, res) => {
-  const user = req.user || users[req.session.userId];
-  if (user) return res.json({ loggedIn: true, user });
-  res.json({ loggedIn: false });
-});
-
-// ================= AVIATOR GAME ENGINE =================
-let gameState = 'WAITING'; // WAITING, FLYING, CRASHED
-let currentMultiplier = 1.00;
+// Game State Variables
+let gameState = 'COUNTDOWN'; // COUNTDOWN, FLYING, CRASHED
+let multiplier = 1.00;
 let crashPoint = 1.00;
-let gameInterval = null;
-let countdown = 5;
-let multiplierHistory = [1.25, 2.40, 1.10, 5.72, 1.84];
-let activeBets = {}; // socketId -> { amount, cashedOut, cashOutMultiplier }
+let countdownSeconds = 5;
+let startTime = 0;
+let gameLoopInterval = null;
+let history = [1.45, 2.80, 1.15, 5.60, 1.95, 3.20];
 
-// Provably fair crash point generator (Mathematical algorithm)
-function generateCrashPoint() {
-  const e = 2 ** 32;
-  const h = Math.floor(Math.random() * e);
-  if (h % 20 === 0) return 1.00; // 5% house instant crash
-  return parseFloat(Math.max(1.01, (100 * e - h) / (e - h) / 100).toFixed(2));
+// In-Memory Player Database
+// socket.id -> { balance, bet1: { amount, cashedOut }, bet2: { amount, cashedOut } }
+const players = new Map();
+
+// Generate Provably Crash Point (Casino algorithm)
+function getNextCrashPoint() {
+  const rand = Math.random();
+  // 7% instant house crash
+  if (rand < 0.07) return +(1.00 + Math.random() * 0.10).toFixed(2);
+  const e = 101;
+  const h = Math.floor(Math.random() * 100);
+  const crash = Math.floor((100 * e - h) / (e - h)) / 100;
+  return Math.max(1.02, +crash.toFixed(2));
 }
 
+// Start Round Countdown
 function startCountdown() {
-  gameState = 'WAITING';
-  countdown = 5;
-  activeBets = {};
+  gameState = 'COUNTDOWN';
+  multiplier = 1.00;
+  countdownSeconds = 5;
 
-  const countInterval = setInterval(() => {
-    io.emit('countdown_tick', countdown);
-    countdown--;
-    if (countdown < 0) {
-      clearInterval(countInterval);
+  // Reset bets for next round
+  players.forEach((p) => {
+    p.bet1.active = p.bet1.queued;
+    p.bet1.cashedOut = false;
+    p.bet1.queued = false;
+
+    p.bet2.active = p.bet2.queued;
+    p.bet2.cashedOut = false;
+    p.bet2.queued = false;
+  });
+
+  io.emit('round_countdown', { 
+    seconds: countdownSeconds,
+    history: history.slice(0, 10)
+  });
+
+  broadcastActiveBets();
+
+  const countTimer = setInterval(() => {
+    countdownSeconds--;
+    if (countdownSeconds > 0) {
+      io.emit('countdown_tick', { seconds: countdownSeconds });
+    } else {
+      clearInterval(countTimer);
       startFlight();
     }
   }, 1000);
 }
 
+// Start Flight
 function startFlight() {
   gameState = 'FLYING';
-  currentMultiplier = 1.00;
-  crashPoint = generateCrashPoint();
-  const startTime = Date.now();
+  crashPoint = getNextCrashPoint();
+  startTime = Date.now();
 
-  io.emit('flight_started');
+  io.emit('flight_start', { timestamp: startTime });
 
-  gameInterval = setInterval(() => {
+  // 50ms Server Tick Loop (20 updates per second)
+  gameLoopInterval = setInterval(() => {
     const elapsed = (Date.now() - startTime) / 1000;
-    // Exponential curve: 1 + elapsed^1.5 * rate
-    currentMultiplier = parseFloat((1 + Math.pow(elapsed * 0.45, 1.8)).toFixed(2));
+    multiplier = +(1.00 + 0.06 * Math.pow(elapsed, 1.7) + 0.04 * elapsed).toFixed(2);
 
-    if (currentMultiplier >= crashPoint) {
-      // Plane Crash
-      clearInterval(gameInterval);
-      gameState = 'CRASHED';
-      multiplierHistory.unshift(crashPoint);
-      if (multiplierHistory.length > 10) multiplierHistory.pop();
-
-      io.emit('flight_crashed', { crashPoint, history: multiplierHistory });
-      setTimeout(startCountdown, 3000);
+    if (multiplier >= crashPoint) {
+      clearInterval(gameLoopInterval);
+      triggerCrash();
     } else {
-      io.emit('multiplier_update', currentMultiplier);
+      io.emit('game_tick', { 
+        multiplier: multiplier,
+        elapsed: elapsed
+      });
     }
-  }, 60);
+  }, 50);
 }
 
-// Start game loop
-startCountdown();
+// Trigger Crash
+function triggerCrash() {
+  gameState = 'CRASHED';
+  history.unshift(crashPoint);
+  if (history.length > 20) history.pop();
 
-// Real-time WebSocket connection
+  // Reset uncashed bets
+  players.forEach((p) => {
+    if (p.bet1.active && !p.bet1.cashedOut) p.bet1.active = false;
+    if (p.bet2.active && !p.bet2.cashedOut) p.bet2.active = false;
+  });
+
+  io.emit('game_crash', { 
+    crashPoint: crashPoint,
+    history: history.slice(0, 10)
+  });
+
+  broadcastActiveBets();
+
+  setTimeout(startCountdown, 3000);
+}
+
+function broadcastActiveBets() {
+  const activeBetsList = [];
+  players.forEach((p, id) => {
+    if (p.bet1.active) {
+      activeBetsList.push({ user: `Player_${id.slice(0, 4)}`, amount: p.bet1.amount, cashedOut: p.bet1.cashedOut });
+    }
+    if (p.bet2.active) {
+      activeBetsList.push({ user: `Player_${id.slice(0, 4)} (2)`, amount: p.bet2.amount, cashedOut: p.bet2.cashedOut });
+    }
+  });
+  io.emit('active_bets_update', activeBetsList);
+}
+
+// WebSockets Connection
 io.on('connection', (socket) => {
-  socket.emit('init_state', {
-    gameState,
-    currentMultiplier,
-    countdown,
-    history: multiplierHistory
+  // New player initialized with ₹2,000 demo balance
+  const playerData = {
+    balance: 2000.00,
+    bet1: { amount: 0, active: false, queued: false, cashedOut: false },
+    bet2: { amount: 0, active: false, queued: false, cashedOut: false }
+  };
+  players.set(socket.id, playerData);
+
+  // Send current state to newly connected player
+  socket.emit('init_sync', {
+    balance: playerData.balance,
+    gameState: gameState,
+    multiplier: multiplier,
+    countdownSeconds: countdownSeconds,
+    history: history.slice(0, 10),
+    onlineCount: players.size
   });
 
-  socket.on('place_bet', (data) => {
-    if (gameState !== 'WAITING') return socket.emit('bet_error', 'Betting closed for this round!');
-    const betAmount = parseFloat(data.amount);
-    if (isNaN(betAmount) || betAmount <= 0) return socket.emit('bet_error', 'Invalid bet amount!');
+  io.emit('online_players', players.size);
 
-    activeBets[socket.id] = {
-      amount: betAmount,
-      cashedOut: false,
-      cashOutMultiplier: 0
-    };
-    socket.emit('bet_accepted', { amount: betAmount });
+  // Place Bet Handler
+  socket.on('place_bet', ({ panel, amount }) => {
+    const p = players.get(socket.id);
+    if (!p) return;
+
+    amount = parseFloat(amount);
+    if (isNaN(amount) || amount <= 0 || p.balance < amount) {
+      socket.emit('bet_error', { message: "Insufficient balance!" });
+      return;
+    }
+
+    const betObj = panel === 1 ? p.bet1 : p.bet2;
+
+    p.balance -= amount;
+    betObj.amount = amount;
+    betObj.cashedOut = false;
+
+    if (gameState === 'COUNTDOWN') {
+      betObj.active = true;
+      betObj.queued = false;
+    } else {
+      betObj.queued = true;
+      betObj.active = false;
+    }
+
+    socket.emit('bet_success', { panel, balance: p.balance, status: betObj.queued ? 'QUEUED' : 'ACTIVE' });
+    broadcastActiveBets();
   });
 
-  socket.on('cash_out', () => {
-    if (gameState !== 'FLYING') return;
-    const bet = activeBets[socket.id];
-    if (bet && !bet.cashedOut) {
-      bet.cashedOut = true;
-      bet.cashOutMultiplier = currentMultiplier;
-      const winAmount = parseFloat((bet.amount * currentMultiplier).toFixed(2));
-      socket.emit('cash_out_success', { winAmount, multiplier: currentMultiplier });
+  // Cancel Bet Handler
+  socket.on('cancel_bet', ({ panel }) => {
+    const p = players.get(socket.id);
+    if (!p) return;
+    const betObj = panel === 1 ? p.bet1 : p.bet2;
+
+    if (betObj.queued || (betObj.active && gameState === 'COUNTDOWN')) {
+      p.balance += betObj.amount;
+      betObj.active = false;
+      betObj.queued = false;
+      betObj.amount = 0;
+
+      socket.emit('cancel_success', { panel, balance: p.balance });
+      broadcastActiveBets();
+    }
+  });
+
+  // Cash Out Handler
+  socket.on('cash_out', ({ panel }) => {
+    const p = players.get(socket.id);
+    if (!p || gameState !== 'FLYING') return;
+
+    const betObj = panel === 1 ? p.bet1 : p.bet2;
+    if (betObj.active && !betObj.cashedOut) {
+      const win = +(betObj.amount * multiplier).toFixed(2);
+      p.balance += win;
+      betObj.cashedOut = true;
+
+      socket.emit('cashout_success', { panel, winAmount: win, balance: p.balance, multiplier });
+      broadcastActiveBets();
     }
   });
 
   socket.on('disconnect', () => {
-    delete activeBets[socket.id];
+    players.delete(socket.id);
+    io.emit('online_players', players.size);
+    broadcastActiveBets();
   });
 });
 
+// Start loop
+startCountdown();
+
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Liquid Aviator Server running at port ${PORT}`);
+  console.log(`Aviator Server running live on http://localhost:${PORT}`);
 });
