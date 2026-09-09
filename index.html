@@ -79,6 +79,15 @@
       font-weight: 700;
       color: #2ecc71;
       font-size: 14px;
+      text-align: right;
+    }
+
+    .user-phone-label {
+      font-size: 11px;
+      color: #8c9cb3;
+      display: block;
+      line-height: 1;
+      margin-bottom: 3px;
     }
 
     .logout-btn {
@@ -283,7 +292,7 @@
       border: 1px solid #1c2332;
       border-radius: 8px;
       padding: 8px 12px;
-      max-height: 70px;
+      max-height: 75px;
       overflow-y: auto;
       font-size: 11px;
     }
@@ -295,7 +304,7 @@
       100% { box-shadow: 0 0 15px rgba(243, 156, 18, 0.85); }
     }
 
-    /* REAL PHONE OTP POPUP */
+    /* REAL PHONE OTP MODAL */
     .auth-overlay {
       position: absolute;
       top: 0;
@@ -396,14 +405,14 @@
     <!-- REAL PHONE AUTH MODAL -->
     <div class="auth-overlay" id="auth-modal">
       <div class="auth-card">
-        <h3>AVIATOR VERIFY</h3>
-        <p>Real Mobile Number se Login / Sign Up karein</p>
+        <h3>AVIATOR LOGIN</h3>
+        <p>Apna Real Mobile Number verify karein</p>
 
         <!-- Step 1: Mobile Number Input -->
         <div id="phone-section">
           <div class="phone-input-group">
             <span class="prefix">+91</span>
-            <input type="tel" id="user-phone" class="auth-input" placeholder="10-digit Mobile No." maxlength="10">
+            <input type="tel" id="user-phone" class="auth-input" placeholder="Enter Mobile Number" maxlength="10">
           </div>
           <div id="recaptcha-container"></div>
           <button class="auth-btn" id="send-otp-btn" onclick="sendOTP()">SEND OTP</button>
@@ -412,7 +421,7 @@
         <!-- Step 2: OTP Input -->
         <div id="otp-section">
           <input type="number" id="otp-input" class="auth-input" placeholder="Enter 6-digit OTP" maxlength="6" style="text-align: center; letter-spacing: 5px; font-size: 18px;">
-          <button class="auth-btn" style="background: linear-gradient(180deg, #ff2b44, #c0392b); margin-top: 10px;" onclick="verifyOTP()">VERIFY & PLAY</button>
+          <button class="auth-btn" style="background: linear-gradient(180deg, #ff2b44, #c0392b); margin-top: 10px;" onclick="verifyOTP()">VERIFY OTP</button>
         </div>
 
         <div class="auth-msg" id="auth-msg"></div>
@@ -425,10 +434,10 @@
       <div class="user-info-group">
         <div class="badge">● <span id="online-count">1</span> Online</div>
         <div class="wallet">
-          <span id="display-user" style="font-size: 10px; color: #8c9cb3; display: block; line-height: 1;">+91-XXXXX</span>
+          <span class="user-phone-label" id="display-user">Mobile: Loading...</span>
           ₹<span id="balance">0.00</span>
         </div>
-        <button class="logout-btn" onclick="logout()">Logout</button>
+        <button class="logout-btn" onclick="logout()">Exit</button>
       </div>
     </div>
 
@@ -446,7 +455,7 @@
       <!-- Panel 1 -->
       <div class="card" id="card-1">
         <div class="card-top">
-          <span>PANEL 1</span>
+          <span>BET PANEL 1</span>
           <label class="auto-cash-group"><input type="checkbox" id="auto-check-1"> Auto: <input type="number" id="auto-val-1" value="2.00" step="0.1" min="1.1">x</label>
         </div>
         <div class="controls-row">
@@ -464,7 +473,7 @@
       <!-- Panel 2 -->
       <div class="card" id="card-2">
         <div class="card-top">
-          <span>PANEL 2</span>
+          <span>BET PANEL 2</span>
           <label class="auto-cash-group"><input type="checkbox" id="auto-check-2"> Auto: <input type="number" id="auto-val-2" value="1.50" step="0.1" min="1.1">x</label>
         </div>
         <div class="controls-row">
@@ -480,18 +489,20 @@
       </div>
     </div>
 
+    <!-- Live Bets Stream with Masked Phone Numbers -->
     <div class="live-bets" id="live-bets"><div class="live-row"><span>Connecting network...</span></div></div>
   </div>
 
   <script>
-    /* ================= FIREBASE CONFIG ================= */
+    /* ================= REAL FIREBASE CONFIG ================= */
     const firebaseConfig = {
-      apiKey: "AIzaSyYOUR_ACTUAL_API_KEY", // <-- Apni Firebase API Key yahan paste karein
+      apiKey: "AIzaSyCrGg0a26ZL6pWwKebZRsoC_KJW9oWBy2M",
       authDomain: "aviator-live-de1e6.firebaseapp.com",
       projectId: "aviator-live-de1e6",
-      storageBucket: "aviator-live-de1e6.appspot.com",
-      messagingSenderId: "100000000000",
-      appId: "1:100000000000:web:abcdef123456"
+      storageBucket: "aviator-live-de1e6.firebasestorage.app",
+      messagingSenderId: "478890292016",
+      appId: "1:478890292016:web:ba39ce61bc378397d84ef5",
+      measurementId: "G-88TGJQBCP0"
     };
     firebase.initializeApp(firebaseConfig);
 
@@ -508,7 +519,7 @@
       const phone = document.getElementById("user-phone").value.trim();
       const authMsg = document.getElementById("auth-msg");
       if (phone.length !== 10) {
-        authMsg.textContent = "Kripya valid 10-digit mobile number daalein!";
+        authMsg.textContent = "Kripya 10-digit mobile number daalein!";
         return;
       }
 
@@ -548,7 +559,7 @@
         socket.emit('auth_phone_verified', { phone: currentUserPhone });
       }).catch((error) => {
         authMsg.style.color = "#ff4757";
-        authMsg.textContent = "Galat OTP! Kripya sahi OTP daalein.";
+        authMsg.textContent = "Galat OTP! Sahi OTP daalein.";
       });
     }
 
@@ -567,7 +578,7 @@
 
     socket.on('auth_success', (data) => {
       document.getElementById("auth-modal").style.display = "none";
-      document.getElementById("display-user").textContent = data.phone;
+      document.getElementById("display-user").textContent = "Phone: " + data.phone;
       document.getElementById("balance").textContent = data.balance.toFixed(2);
     });
 
@@ -682,9 +693,4 @@
       updateButtonsUI();
     });
 
-    socket.on('bet_error', (data) => { alert(data.message); });
-
-    socket.on('bets_update', (list) => {
-      liveBetsBox.innerHTML = list.map(b => `
-        <div class="live-row ${b.cashedOut ? 'win' : ''}">
-         
+    socket.o
