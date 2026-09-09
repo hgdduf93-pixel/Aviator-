@@ -16,7 +16,7 @@
     .user-info-group { display: flex; align-items: center; gap: 8px; }
     .badge { font-size: 11px; color: #2ed573; background: rgba(46, 213, 115, 0.1); padding: 4px 10px; border-radius: 12px; border: 1px solid rgba(46, 213, 115, 0.25); }
     .wallet { background: #1a2130; border: 1px solid #2c3852; padding: 6px 14px; border-radius: 20px; font-weight: 700; color: #2ecc71; font-size: 14px; text-align: right; }
-    .user-email-label { font-size: 11px; color: #8c9cb3; display: block; line-height: 1; margin-bottom: 3px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-email-label { font-size: 11px; color: #8c9cb3; display: block; line-height: 1; margin-bottom: 3px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .logout-btn { background: #232c40; border: none; color: #ff5252; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; }
 
     .history-row { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 10px; scrollbar-width: none; }
@@ -56,14 +56,21 @@
 
     /* AUTH MODAL */
     .auth-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 13, 20, 0.98); backdrop-filter: blur(10px); z-index: 500; display: flex; justify-content: center; align-items: center; border-radius: 16px; }
-    .auth-card { width: 90%; max-width: 360px; background: #161b29; border: 1px solid #2b354d; border-radius: 16px; padding: 24px 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.8); text-align: center; }
+    .auth-card { width: 92%; max-width: 380px; background: #161b29; border: 1px solid #2b354d; border-radius: 16px; padding: 24px 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.85); text-align: center; }
     .auth-card h3 { font-size: 20px; color: #ff2b44; margin-bottom: 4px; font-weight: 900; }
     .auth-card p { font-size: 12px; color: #7b889e; margin-bottom: 16px; }
 
-    /* Tabs */
-    .auth-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
-    .tab-btn { flex: 1; padding: 10px; background: #0c0f17; border: 1px solid #242d40; border-radius: 8px; color: #8c9cb3; font-weight: 800; font-size: 13px; cursor: pointer; transition: all 0.2s; }
-    .tab-btn.active { background: #ff2b44; color: #fff; border-color: #ff2b44; }
+    .bonus-tag {
+      background: rgba(46, 213, 115, 0.15);
+      border: 1px solid #2ed573;
+      color: #2ed573;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 14px;
+      display: inline-block;
+    }
 
     .auth-inputs { display: flex; flex-direction: column; gap: 10px; }
     .auth-input { width: 100%; background: #0a0d14; border: 1px solid #273249; color: #fff; padding: 12px; border-radius: 8px; font-size: 15px; outline: none; }
@@ -71,31 +78,66 @@
     .auth-btn { width: 100%; background: linear-gradient(180deg, #2ecc71, #27ae60); border: none; color: #fff; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 800; cursor: pointer; text-transform: uppercase; margin-top: 6px; }
     .auth-btn:active { transform: scale(0.98); }
     .auth-msg { font-size: 12px; margin-top: 10px; color: #ff4757; min-height: 18px; font-weight: 600; word-break: break-word; }
+    
+    .switch-link-box {
+      margin-top: 14px;
+      font-size: 12px;
+      color: #8c9cb3;
+    }
+    .switch-link {
+      color: #5ea8f5;
+      font-weight: bold;
+      text-decoration: underline;
+      cursor: pointer;
+      margin-left: 4px;
+    }
   </style>
 </head>
 <body>
 
   <div class="app-container">
-    <!-- EMAIL AUTH MODAL -->
+    <!-- AUTH MODAL -->
     <div class="auth-overlay" id="auth-modal">
-      <div class="auth-card">
-        <h3>AVIATOR CLUB</h3>
-        <p id="auth-subtitle">Login karein ya Naya Account banayein</p>
-
-        <!-- Tabs: Login vs Sign Up -->
-        <div class="auth-tabs">
-          <button class="tab-btn active" id="tab-login" onclick="setTab('login')">LOGIN</button>
-          <button class="tab-btn" id="tab-signup" onclick="setTab('signup')">SIGN UP</button>
-        </div>
+      
+      <!-- SCREEN 1: LOGIN SCREEN -->
+      <div class="auth-card" id="login-screen">
+        <h3>AVIATOR LOGIN</h3>
+        <p>Apne Email aur Password se Login karein</p>
 
         <div class="auth-inputs">
-          <input type="email" id="user-email" class="auth-input" placeholder="Email ID (e.g. name@gmail.com)">
-          <input type="password" id="user-pass" class="auth-input" placeholder="Password (kam se kam 4 akshar)">
-          <button type="button" class="auth-btn" id="auth-submit-btn" onclick="handleAuth()">LOGIN</button>
+          <input type="email" id="login-email" class="auth-input" placeholder="Email ID (e.g. name@gmail.com)" autocomplete="off">
+          <input type="password" id="login-pass" class="auth-input" placeholder="Password">
+          <button type="button" class="auth-btn" id="login-btn" onclick="doLogin()">LOGIN KAREIN</button>
         </div>
 
-        <div class="auth-msg" id="auth-msg"></div>
+        <div class="auth-msg" id="login-msg"></div>
+
+        <div class="switch-link-box">
+          Naye user hain? <span class="switch-link" onclick="showScreen('signup')">Sign Up Karein (Free ₹500)</span>
+        </div>
       </div>
+
+      <!-- SCREEN 2: SIGN UP SCREEN (COMPLETELY SEPARATE) -->
+      <div class="auth-card" id="signup-screen" style="display: none;">
+        <h3>CREATE NEW ACCOUNT</h3>
+        <p>Real Email se Sign Up karein</p>
+        
+        <div class="bonus-tag">🎁 Signup Bonus: Instant ₹500 Free</div>
+
+        <div class="auth-inputs">
+          <input type="email" id="signup-email" class="auth-input" placeholder="Email ID (e.g. name@gmail.com)" autocomplete="off">
+          <input type="password" id="signup-pass" class="auth-input" placeholder="Naya Password banayein">
+          <input type="password" id="signup-confirm-pass" class="auth-input" placeholder="Confirm Password">
+          <button type="button" class="auth-btn" style="background: linear-gradient(180deg, #ff2b44, #c0392b);" id="signup-btn" onclick="doSignup()">SIGN UP & PLAY</button>
+        </div>
+
+        <div class="auth-msg" id="signup-msg"></div>
+
+        <div class="switch-link-box">
+          Pehle se account hai? <span class="switch-link" onclick="showScreen('login')">Login Karein</span>
+        </div>
+      </div>
+
     </div>
 
     <!-- Top Navigation Bar -->
@@ -163,52 +205,55 @@
   </div>
 
   <script>
-    let activeTab = 'login';
     let currentUserEmail = null;
 
-    function setTab(tab) {
-      activeTab = tab;
-      document.getElementById("auth-msg").textContent = "";
-      if (tab === 'login') {
-        document.getElementById("tab-login").className = "tab-btn active";
-        document.getElementById("tab-signup").className = "tab-btn";
-        document.getElementById("auth-submit-btn").textContent = "LOGIN";
-        document.getElementById("auth-subtitle").textContent = "Apne Email aur Password se Login karein";
+    // Switch between Login and Sign Up Screens
+    function showScreen(type) {
+      document.getElementById("login-msg").textContent = "";
+      document.getElementById("signup-msg").textContent = "";
+
+      if (type === 'signup') {
+        document.getElementById("login-screen").style.display = "none";
+        document.getElementById("signup-screen").style.display = "block";
       } else {
-        document.getElementById("tab-login").className = "tab-btn";
-        document.getElementById("tab-signup").className = "tab-btn active";
-        document.getElementById("auth-submit-btn").textContent = "SIGN UP & GET ₹500";
-        document.getElementById("auth-subtitle").textContent = "Naya account banayein aur ₹500 bonus paayein";
+        document.getElementById("signup-screen").style.display = "none";
+        document.getElementById("login-screen").style.display = "block";
       }
     }
 
-    async function handleAuth() {
-      const email = document.getElementById("user-email").value.trim();
-      const pass = document.getElementById("user-pass").value.trim();
-      const authMsg = document.getElementById("auth-msg");
-      const btn = document.getElementById("auth-submit-btn");
+    // 1. SIGN UP ACTION
+    async function doSignup() {
+      const email = document.getElementById("signup-email").value.trim().toLowerCase();
+      const pass = document.getElementById("signup-pass").value.trim();
+      const confirmPass = document.getElementById("signup-confirm-pass").value.trim();
+      const msg = document.getElementById("signup-msg");
+      const btn = document.getElementById("signup-btn");
 
-      if (!email) {
-        authMsg.style.color = "#ff4757";
-        authMsg.textContent = "Email ID daalein!";
+      if (!email || !email.includes('@') || !email.includes('.')) {
+        msg.style.color = "#ff4757";
+        msg.textContent = "Kripya sahi Email ID daalein!";
         return;
       }
-      if (!pass) {
-        authMsg.style.color = "#ff4757";
-        authMsg.textContent = "Password daalein!";
+      if (!pass || pass.length < 3) {
+        msg.style.color = "#ff4757";
+        msg.textContent = "Password kam se kam 3 akshar ka daalein!";
+        return;
+      }
+      if (pass !== confirmPass) {
+        msg.style.color = "#ff4757";
+        msg.textContent = "Dono Password match nahi kar rahe hain!";
         return;
       }
 
       btn.disabled = true;
-      authMsg.textContent = "";
-
-      const endpoint = activeTab === 'signup' ? '/api/signup' : '/api/login';
+      btn.textContent = "ACCOUNT BAN RAHA HAI...";
+      msg.textContent = "";
 
       try {
-        const res = await fetch(endpoint, {
+        const res = await fetch('/api/signup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email, password: pass })
+          body: JSON.stringify({ email, password: pass })
         });
         const data = await res.json();
 
@@ -216,23 +261,75 @@
           currentUserEmail = data.email;
           localStorage.setItem("aviator_real_email", data.email);
 
-          // UNLOCK GAME
+          // UNLOCK GAME IMMEDIATELY
           document.getElementById("auth-modal").style.display = "none";
           document.getElementById("display-user").textContent = data.email;
           document.getElementById("balance").textContent = data.balance.toFixed(2);
 
-          if (socket) {
-            socket.emit('set_user_email', { email: data.email });
-          }
+          if (socket) socket.emit('set_user_email', { email: data.email });
         } else {
-          authMsg.style.color = "#ff4757";
-          authMsg.textContent = data.message;
+          msg.style.color = "#ff4757";
+          msg.textContent = data.message;
         }
       } catch (err) {
-        authMsg.style.color = "#ff4757";
-        authMsg.textContent = "Network error! 5 second baad koshish karein.";
+        msg.style.color = "#ff4757";
+        msg.textContent = "Server connect error! 5 second baad koshish karein.";
       } finally {
         btn.disabled = false;
+        btn.textContent = "SIGN UP & PLAY";
+      }
+    }
+
+    // 2. LOGIN ACTION
+    async function doLogin() {
+      const email = document.getElementById("login-email").value.trim().toLowerCase();
+      const pass = document.getElementById("login-pass").value.trim();
+      const msg = document.getElementById("login-msg");
+      const btn = document.getElementById("login-btn");
+
+      if (!email) {
+        msg.style.color = "#ff4757";
+        msg.textContent = "Email ID daalein!";
+        return;
+      }
+      if (!pass) {
+        msg.style.color = "#ff4757";
+        msg.textContent = "Password daalein!";
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "LOGGING IN...";
+      msg.textContent = "";
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: pass })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          currentUserEmail = data.email;
+          localStorage.setItem("aviator_real_email", data.email);
+
+          // UNLOCK GAME IMMEDIATELY
+          document.getElementById("auth-modal").style.display = "none";
+          document.getElementById("display-user").textContent = data.email;
+          document.getElementById("balance").textContent = data.balance.toFixed(2);
+
+          if (socket) socket.emit('set_user_email', { email: data.email });
+        } else {
+          msg.style.color = "#ff4757";
+          msg.textContent = data.message;
+        }
+      } catch (err) {
+        msg.style.color = "#ff4757";
+        msg.textContent = "Server connect error! 5 second baad koshish karein.";
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "LOGIN KAREIN";
       }
     }
 
@@ -251,7 +348,7 @@
       }
     });
 
-    /* ================= GAME ENGINE ================= */
+    /* ================= GAMEPLAY ENGINE ================= */
     let socket = null;
     try { if (typeof io !== 'undefined') socket = io(); } catch (e) {}
 
@@ -326,85 +423,4 @@
           const autoCheck = document.getElementById(`auto-check-${id}`).checked;
           const autoVal = parseFloat(document.getElementById(`auto-val-${id}`).value) || 9999;
           if (autoCheck && panels[id].status === "ACTIVE" && !panels[id].cashedOut && serverMultiplier >= autoVal) {
-            socket.emit('cash_out', { panel: id });
-          }
-        });
-        updateButtonsUI();
-      });
-
-      socket.on('game_crash', (data) => {
-        currentGameState = "CRASHED";
-        multLbl.textContent = "FLEW AWAY!";
-        multLbl.classList.add("crash-red");
-        statusNote.textContent = `CRASHED @ ${data.crashPoint.toFixed(2)}x`;
-        updateHistoryUI(data.history);
-
-        [1, 2].forEach(id => {
-          if (panels[id].status === "ACTIVE" && !panels[id].cashedOut) panels[id].status = "IDLE";
-        });
-        updateButtonsUI();
-      });
-
-      socket.on('bet_success', (data) => {
-        balanceEl.textContent = data.balance.toFixed(2);
-        panels[data.panel].status = data.status;
-        panels[data.panel].amount = parseFloat(document.getElementById(`amt-${data.panel}`).value);
-        updateButtonsUI();
-      });
-
-      socket.on('cancel_success', (data) => {
-        balanceEl.textContent = data.balance.toFixed(2);
-        panels[data.panel].status = "IDLE";
-        panels[data.panel].amount = 0;
-        updateButtonsUI();
-      });
-
-      socket.on('cashout_success', (data) => {
-        balanceEl.textContent = data.balance.toFixed(2);
-        panels[data.panel].cashedOut = true;
-        panels[data.panel].status = "WON";
-        updateButtonsUI();
-      });
-
-      socket.on('bet_error', (data) => { alert(data.message); });
-
-      socket.on('bets_update', (list) => {
-        liveBetsBox.innerHTML = list.map(b => `
-          <div class="live-row ${b.cashedOut ? 'win' : ''}">
-            <span>${b.user}</span>
-            <span>₹${b.amount} ${b.cashedOut ? '(CASHED OUT)' : ''}</span>
-          </div>
-        `).join('') || '<div class="live-row"><span>No active bets</span></div>';
-      });
-    }
-
-    function handleBtn(panelId) {
-      if (!currentUserEmail) {
-        document.getElementById("auth-modal").style.display = "flex";
-        return;
-      }
-      const p = panels[panelId];
-      const amount = parseFloat(document.getElementById(`amt-${panelId}`).value);
-
-      if (socket) {
-        if (p.status === "IDLE") socket.emit('place_bet', { panel: panelId, amount });
-        else if (p.status === "QUEUED" || (p.status === "ACTIVE" && currentGameState === "COUNTDOWN")) socket.emit('cancel_bet', { panel: panelId });
-        else if (p.status === "ACTIVE" && currentGameState === "FLYING" && !p.cashedOut) socket.emit('cash_out', { panel: panelId });
-      }
-    }
-
-    function updateButtonsUI() {
-      [1, 2].forEach(id => {
-        const p = panels[id];
-        const btn = document.getElementById(`btn-${id}`);
-        const sub = document.getElementById(`sub-${id}`);
-        const amtInput = document.getElementById(`amt-${id}`);
-
-        if (p.status === "IDLE") {
-          amtInput.disabled = false;
-          btn.className = "action-btn btn-green";
-          btn.firstElementChild.textContent = "BET";
-          sub.textContent = `₹${amtInput.value}`;
-        } else if (p.status === "QUEUED") {
-          amtInput.disabled = true;
-         
+       
