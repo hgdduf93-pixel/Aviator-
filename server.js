@@ -8,13 +8,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
+// JSON Body Parser for instant API
+app.use(express.json());
 app.use(express.static(__dirname));
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Database file for saving users and balances
+// Database file
 const DB_FILE = path.join(__dirname, 'users.json');
 let users = {};
 
@@ -26,10 +24,68 @@ function saveUsers() {
   try { fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2)); } catch (err) {}
 }
 
-// In-Memory OTP Store: phone -> { otp, expiresAt }
+// In-Memory OTP Store
 const otpStore = new Map();
 
-// Game State Variables
+// REST API 1: Send OTP (Super Fast - No Socket lag)
+app.post('/api/send-otp', (req, res) => {
+  const phone = (req.body.phone || '').trim();
+  if (!phone || phone.length !== 10 || isNaN(phone)) {
+    return res.status(400).json({ success: false, message: "Kripya valid 10-digit mobile number daalein!" });
+  }
+
+  // 6-digit real OTP
+  const generatedOTP = Math.floor(100000 + Math.random() * 900000).toString();
+  otpStore.set(phone, {
+    otp: generatedOTP,
+    expiresAt: Date.now() + 5 * 60 * 1000
+  });
+
+  console.log(`>>> OTP GENERATED FOR +91 ${phone}: ${generatedOTP} <<<`);
+
+  return res.json({
+    success: true,
+    phone: phone,
+    otp: generatedOTP, // Screen banner me dikhane ke liye
+    message: "OTP successfully sent!"
+  });
+});
+
+// REST API 2: Verify OTP
+app.post('/api/verify-otp', (req, res) => {
+  const phone = (req.body.phone || '').trim();
+  const otp = (req.body.otp || '').trim();
+
+  const record = otpStore.get(phone);
+  if (!record) {
+    return res.status(400).json({ success: false, message: "Pehle SEND OTP par click karein!" });
+  }
+
+  if (Date.now() > record.expiresAt) {
+    otpStore.delete(phone);
+    return res.status(400).json({ success: false, message: "OTP expire ho gaya hai, dobara try karein!" });
+  }
+
+  if (record.otp !== otp) {
+    return res.status(400).json({ success: false, message: "Galat OTP! Kripya sahi OTP daalein." });
+  }
+
+  otpStore.delete(phone);
+
+  // User save with ₹500 bonus
+  if (!users[phone]) {
+    users[phone] = { balance: 500.00, registeredAt: new Date().toISOString() };
+    saveUsers();
+  }
+
+  return res.json({
+    success: true,
+    phone: phone,
+    balance: users[phone].balance
+  });
+});
+
+// Game Loop Variables
 let gameState = 'COUNTDOWN';
 let multiplier = 1.00;
 let crashPoint = 1.00;
@@ -128,88 +184,14 @@ io.on('connection', (socket) => {
 
   io.emit('online_count', onlineSockets.size);
 
-  // 1. REQUEST REAL OTP
-  socket.on('request_otp', ({ phone }) => {
-    phone = (phone || '').trim();
-    if (!phone || phone.length !== 10 || isNaN(phone)) {
-      return socket.emit('otp_error', { message: "Kripya sahi 10-digit mobile number daalein!" });
-    }
-
-    // Generate 6-Digit Numeric OTP
-    const generatedOTP = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore.set(phone, {
-      otp: generatedOTP,
-      expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes expiry
-    });
-
-    console.log(`[OTP SENT] Mobile: ${phone} | OTP: ${generatedOTP}`);
-
-    // Send OTP confirmation and trigger visual SMS notification
-    socket.emit('otp_sent_success', {
-      phone: phone,
-      otp: generatedOTP, // Instant Push notification alert
-      message: `OTP aapke mobile number +91 ${phone} par bhej diya gaya hai!`
-    });
-  });
-
-  // 2. VERIFY REAL OTP
-  socket.on('verify_otp', ({ phone, otp }) => {
-    phone = (phone || '').trim();
-    otp = (otp || '').trim();
-
-    const record = otpStore.get(phone);
-
-    if (!record) {
-      return socket.emit('otp_error', { message: "Pehle OTP request karein!" });
-    }
-
-    if (Date.now() > record.expiresAt) {
-      otpStore.delete(phone);
-      return socket.emit('otp_error', { message: "OTP expire ho gaya! Dobara bhejein." });
-    }
-
-    if (record.otp !== otp) {
-      return socket.emit('otp_error', { message: "Galat OTP! Kripya sahi OTP daalein." });
-    }
-
-    // OTP Verified Successfully
-    otpStore.delete(phone);
-
-    // Create or Load User Account
-    if (!users[phone]) {
-      users[phone] = {
-        balance: 500.00,
-        registeredAt: new Date().toISOString()
-      };
-      saveUsers();
-    }
-
-    const p = onlineSockets.get(socket.id);
-    if (p) p.phone = phone;
-
-    socket.emit('auth_success', {
-      phone: phone,
-      balance: users[phone].balance
-    });
-
-    broadcastBets();
-  });
-
-  // Check saved session
-  socket.on('check_session', ({ phone }) => {
+  socket.on('set_user_phone', ({ phone }) => {
     if (phone && users[phone]) {
       const p = onlineSockets.get(socket.id);
       if (p) p.phone = phone;
-
-      socket.emit('auth_success', {
-        phone: phone,
-        balance: users[phone].balance
-      });
       broadcastBets();
     }
   });
 
-  // Place Bet
   socket.on('place_bet', ({ panel, amount }) => {
     const p = onlineSockets.get(socket.id);
     if (!p || !p.phone || !users[p.phone]) return;
@@ -217,7 +199,7 @@ io.on('connection', (socket) => {
     amount = parseFloat(amount);
     const user = users[p.phone];
     if (isNaN(amount) || amount <= 0 || user.balance < amount) {
-      socket.emit('bet_error', { message: "Insufficient balance!" });
+      socket.emit('bet_error', { message: "Balance kam hai!" });
       return;
     }
 
@@ -234,7 +216,6 @@ io.on('connection', (socket) => {
     broadcastBets();
   });
 
-  // Cancel Bet
   socket.on('cancel_bet', ({ panel }) => {
     const p = onlineSockets.get(socket.id);
     if (!p || !p.phone || !users[p.phone]) return;
@@ -253,7 +234,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Cash Out
   socket.on('cash_out', ({ panel }) => {
     const p = onlineSockets.get(socket.id);
     if (!p || !p.phone || !users[p.phone] || gameState !== 'FLYING') return;
@@ -282,5 +262,6 @@ startCountdown();
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Aviator Server live on port ${PORT}`);
+  console.log(`Server live on port ${PORT}`);
 });
+    
