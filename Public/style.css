@@ -1,0 +1,484 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: #0b0c0e;
+  color: #ffffff;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.app-container {
+  width: 100%;
+  max-width: 480px;
+  background-color: #121316;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Header */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background-color: #16171b;
+  border-bottom: 1px solid #22242a;
+}
+
+.brand {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #38e063;
+  letter-spacing: 1px;
+}
+
+.brand span {
+  color: #ffffff;
+}
+
+.user-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wallet-badge {
+  background-color: #21242b;
+  border: 1px solid #333742;
+  padding: 5px 10px;
+  border-radius: 16px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.wallet-badge small {
+  color: #88909e;
+  font-weight: 500;
+}
+
+.wallet-badge .plus-btn {
+  color: #38e063;
+  font-weight: 900;
+  font-size: 1rem;
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+
+/* Multiplier Ribbon */
+.history-ribbon {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background-color: #131417;
+}
+
+.history-ribbon::-webkit-scrollbar {
+  display: none;
+}
+
+.pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background-color: #1a1c22;
+  white-space: nowrap;
+}
+
+.pill.red {
+  color: #e63946;
+  border: 1px solid rgba(230, 57, 70, 0.4);
+}
+
+.pill.green {
+  color: #38e063;
+  border: 1px solid rgba(56, 224, 99, 0.4);
+}
+
+.pill.blue {
+  color: #4cc9f0;
+  border: 1px solid rgba(76, 201, 240, 0.4);
+}
+
+/* Game Stage & Canvas */
+.stage-container {
+  position: relative;
+  width: 100%;
+  height: 230px;
+  background: #0f1013;
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 4px 0;
+}
+
+#gameCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.canvas-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.brand-watermark {
+  position: absolute;
+  top: 25px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.85;
+}
+
+.badge-supersonic {
+  background-color: #e63946;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 900;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.brand-watermark h2 {
+  font-size: 1.1rem;
+  letter-spacing: 2px;
+}
+
+.status-msg {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-top: 40px;
+}
+
+.multiplier-display {
+  font-size: 2.8rem;
+  font-weight: 900;
+  display: none;
+}
+
+.chat-floating-pill {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(22, 23, 27, 0.8);
+  border: 1px solid #38e063;
+  color: #38e063;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+/* Dual Bet Cards */
+.controls-wrapper {
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bet-card {
+  background-color: #17181c;
+  border: 1px solid #23252d;
+  border-radius: 12px;
+  padding: 8px 10px;
+}
+
+.bet-header-row {
+  display: flex;
+  gap: 10px;
+  height: 52px;
+}
+
+.amount-stepper {
+  display: flex;
+  background-color: #0d0e11;
+  border: 1px solid #282a33;
+  border-radius: 8px;
+  flex: 1;
+  align-items: center;
+}
+
+.amount-stepper button {
+  background: transparent;
+  border: none;
+  color: #999ea8;
+  font-size: 1.2rem;
+  width: 38px;
+  height: 100%;
+  cursor: pointer;
+}
+
+.amount-stepper input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-align: center;
+  outline: none;
+}
+
+.action-btn {
+  flex: 1;
+  background-color: #38e063;
+  color: #0b0c0e;
+  border: none;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-weight: 900;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+
+.action-btn.active-bet {
+  background-color: #f59e0b;
+  color: #000;
+}
+
+.action-btn.cancel-bet {
+  background-color: #e63946;
+  color: #fff;
+}
+
+.btn-subtext {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.btn-maintext {
+  font-size: 0.95rem;
+}
+
+/* Preset row */
+.preset-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.preset-row button {
+  background-color: #0d0e11;
+  border: 1px solid #23262f;
+  color: #b0b5c1;
+  padding: 5px 0;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.preset-row button:hover {
+  border-color: #38e063;
+  color: #fff;
+}
+
+/* Toggles row */
+.toggles-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: #8f95a3;
+  margin-top: 4px;
+}
+
+.toggle-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.toggle-group input {
+  display: none;
+}
+
+.toggle-slider {
+  width: 24px;
+  height: 12px;
+  background-color: #2b2e38;
+  border-radius: 8px;
+  position: relative;
+  transition: 0.2s;
+}
+
+.toggle-slider::before {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: white;
+  top: 2px;
+  left: 2px;
+  transition: 0.2s;
+}
+
+.toggle-group input:checked + .toggle-slider {
+  background-color: #38e063;
+}
+
+.toggle-group input:checked + .toggle-slider::before {
+  transform: translateX(12px);
+  background-color: #000;
+}
+
+.stepper-mini {
+  display: flex;
+  align-items: center;
+  background: #0d0e11;
+  border: 1px solid #23262f;
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+
+.stepper-mini button {
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.stepper-mini input {
+  width: 42px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  text-align: center;
+  font-size: 0.75rem;
+}
+
+/* Tabs */
+.tabs-container {
+  display: flex;
+  background-color: #16171b;
+  border-top: 1px solid #23252d;
+  margin-top: 6px;
+}
+
+.tab {
+  flex: 1;
+  text-align: center;
+  padding: 10px 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #8f95a3;
+  cursor: pointer;
+  position: relative;
+}
+
+.tab.active {
+  color: #ffffff;
+}
+
+.tab.active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 25%;
+  width: 50%;
+  height: 3px;
+  background-color: #38e063;
+  border-radius: 2px;
+}
+
+.tab-content {
+  padding: 10px;
+  font-size: 0.8rem;
+  color: #8f95a3;
+  flex: 1;
+}
+
+/* Modals */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.75);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 99;
+}
+
+.modal.show {
+  display: flex;
+}
+
+.modal-box {
+  background: #191b20;
+  border: 1px solid #2b2e38;
+  padding: 20px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-box input {
+  background: #0e0f13;
+  border: 1px solid #323642;
+  color: #fff;
+  padding: 10px;
+  border-radius: 6px;
+}
+
+.modal-actions, .coin-presets {
+  display: flex;
+  gap: 8px;
+}
+
+.modal-actions button, .coin-presets button {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-primary { background: #38e063; color: #000; }
+.btn-secondary { background: #262933; color: #fff; }
+.btn-close { background: transparent; color: #999; border: none; cursor: pointer; }
