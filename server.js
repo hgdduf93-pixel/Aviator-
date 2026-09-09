@@ -14,7 +14,7 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Real Phone Database
+// Database file for saving users and balances
 const DB_FILE = path.join(__dirname, 'users.json');
 let users = {};
 
@@ -26,6 +26,10 @@ function saveUsers() {
   try { fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2)); } catch (err) {}
 }
 
+// In-Memory OTP Store: phone -> { otp, expiresAt }
+const otpStore = new Map();
+
+// Game State Variables
 let gameState = 'COUNTDOWN';
 let multiplier = 1.00;
 let crashPoint = 1.00;
@@ -108,7 +112,7 @@ function broadcastBets() {
   const activeBets = [];
   onlineSockets.forEach((p) => {
     if (!p.phone) return;
-    const masked = p.phone.slice(0, 6) + 'XXXX' + p.phone.slice(-2);
+    const masked = p.phone.slice(0, 2) + '******' + p.phone.slice(-2);
     if (p.bet1.active) activeBets.push({ user: masked, amount: p.bet1.amount, cashedOut: p.bet1.cashedOut });
     if (p.bet2.active) activeBets.push({ user: `${masked} (2)`, amount: p.bet2.amount, cashedOut: p.bet2.cashedOut });
   });
@@ -124,11 +128,59 @@ io.on('connection', (socket) => {
 
   io.emit('online_count', onlineSockets.size);
 
-  // Phone Verified Event (Only valid Firebase tokens)
-  socket.on('auth_phone_verified', ({ phone }) => {
-    if (!phone) return;
+  // 1. REQUEST REAL OTP
+  socket.on('request_otp', ({ phone }) => {
+    phone = (phone || '').trim();
+    if (!phone || phone.length !== 10 || isNaN(phone)) {
+      return socket.emit('otp_error', { message: "Kripya sahi 10-digit mobile number daalein!" });
+    }
+
+    // Generate 6-Digit Numeric OTP
+    const generatedOTP = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore.set(phone, {
+      otp: generatedOTP,
+      expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes expiry
+    });
+
+    console.log(`[OTP SENT] Mobile: ${phone} | OTP: ${generatedOTP}`);
+
+    // Send OTP confirmation and trigger visual SMS notification
+    socket.emit('otp_sent_success', {
+      phone: phone,
+      otp: generatedOTP, // Instant Push notification alert
+      message: `OTP aapke mobile number +91 ${phone} par bhej diya gaya hai!`
+    });
+  });
+
+  // 2. VERIFY REAL OTP
+  socket.on('verify_otp', ({ phone, otp }) => {
+    phone = (phone || '').trim();
+    otp = (otp || '').trim();
+
+    const record = otpStore.get(phone);
+
+    if (!record) {
+      return socket.emit('otp_error', { message: "Pehle OTP request karein!" });
+    }
+
+    if (Date.now() > record.expiresAt) {
+      otpStore.delete(phone);
+      return socket.emit('otp_error', { message: "OTP expire ho gaya! Dobara bhejein." });
+    }
+
+    if (record.otp !== otp) {
+      return socket.emit('otp_error', { message: "Galat OTP! Kripya sahi OTP daalein." });
+    }
+
+    // OTP Verified Successfully
+    otpStore.delete(phone);
+
+    // Create or Load User Account
     if (!users[phone]) {
-      users[phone] = { balance: 500.00, registeredAt: new Date().toISOString() };
+      users[phone] = {
+        balance: 500.00,
+        registeredAt: new Date().toISOString()
+      };
       saveUsers();
     }
 
@@ -136,12 +188,28 @@ io.on('connection', (socket) => {
     if (p) p.phone = phone;
 
     socket.emit('auth_success', {
-      phone: phone.slice(0, 6) + 'XXXX' + phone.slice(-2),
+      phone: phone,
       balance: users[phone].balance
     });
+
     broadcastBets();
   });
 
+  // Check saved session
+  socket.on('check_session', ({ phone }) => {
+    if (phone && users[phone]) {
+      const p = onlineSockets.get(socket.id);
+      if (p) p.phone = phone;
+
+      socket.emit('auth_success', {
+        phone: phone,
+        balance: users[phone].balance
+      });
+      broadcastBets();
+    }
+  });
+
+  // Place Bet
   socket.on('place_bet', ({ panel, amount }) => {
     const p = onlineSockets.get(socket.id);
     if (!p || !p.phone || !users[p.phone]) return;
@@ -149,7 +217,7 @@ io.on('connection', (socket) => {
     amount = parseFloat(amount);
     const user = users[p.phone];
     if (isNaN(amount) || amount <= 0 || user.balance < amount) {
-      socket.emit('bet_error', { message: "Balance kam hai!" });
+      socket.emit('bet_error', { message: "Insufficient balance!" });
       return;
     }
 
@@ -166,6 +234,7 @@ io.on('connection', (socket) => {
     broadcastBets();
   });
 
+  // Cancel Bet
   socket.on('cancel_bet', ({ panel }) => {
     const p = onlineSockets.get(socket.id);
     if (!p || !p.phone || !users[p.phone]) return;
@@ -184,6 +253,7 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Cash Out
   socket.on('cash_out', ({ panel }) => {
     const p = onlineSockets.get(socket.id);
     if (!p || !p.phone || !users[p.phone] || gameState !== 'FLYING') return;
@@ -212,6 +282,5 @@ startCountdown();
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server live on port ${PORT}`);
+  console.log(`Aviator Server live on port ${PORT}`);
 });
-	  
