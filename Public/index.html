@@ -1,402 +1,318 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Aviator Live</title>
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Supersonic Live</title>
+  <script src="/socket.io/socket.io.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: #0c1017; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 8px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; }
+    body { background-color: #0b0e11; color: #fff; display: flex; justify-content: center; min-height: 100vh; }
+    .container { width: 100%; max-width: 480px; background: #12151c; display: flex; flex-direction: column; min-height: 100vh; padding-bottom: 20px; }
 
-    /* Auth Screen */
-    .auth-overlay { position: fixed; inset: 0; background: rgba(8, 11, 16, 0.95); z-index: 100; display: flex; justify-content: center; align-items: center; padding: 16px; }
-    .auth-card { width: 100%; max-width: 360px; background: #141b26; border: 1px solid #253347; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
-    .auth-brand { font-size: 26px; font-weight: 900; font-style: italic; color: #e52538; text-align: center; }
-    .tabs { display: flex; background: #0a0d13; border-radius: 8px; padding: 4px; }
-    .tab-btn { flex: 1; padding: 8px; border: none; background: transparent; color: #8fa0b5; font-weight: bold; border-radius: 6px; cursor: pointer; }
-    .tab-btn.active { background: #e52538; color: #fff; }
-    .auth-field { display: flex; flex-direction: column; gap: 6px; }
-    .auth-field label { font-size: 12px; color: #8fa0b5; }
-    .auth-field input { padding: 12px; background: #0b1016; border: 1px solid #273549; border-radius: 8px; color: #fff; font-size: 15px; outline: none; }
-    .btn-submit { padding: 14px; background: #22c55e; border: none; border-radius: 8px; color: #052e16; font-size: 16px; font-weight: 900; cursor: pointer; }
-    .auth-err { font-size: 13px; color: #ef4444; text-align: center; min-height: 18px; }
+    .header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #0c0e14; border-bottom: 1px solid #1f2430; }
+    .logo { font-size: 1.1rem; font-weight: 800; color: #00e676; letter-spacing: 1px; display: flex; align-items: center; gap: 6px; }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff334b; animation: pulse 1.2s infinite; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+    .balance-box { background: #181d26; padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 0.9rem; color: #f3f4f6; }
 
-    /* Game Screen */
-    .app { width: 100%; max-width: 440px; background: #131924; border: 1px solid #1f2a3a; border-radius: 16px; display: none; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
-    .top-bar { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; background: #101520; border-bottom: 1px solid #1c2637; }
-    .brand { color: #e52538; font-weight: 900; font-size: 20px; font-style: italic; }
-    .user-pill { font-size: 12px; color: #94a3b8; font-weight: bold; }
-    .top-right { display: flex; gap: 8px; align-items: center; }
-    .bal-tag { background: #090c12; border: 1px solid #273549; color: #4ade80; font-size: 13px; font-weight: bold; padding: 4px 12px; border-radius: 20px; }
-    .btn-logout { background: #243144; border: none; color: #cbd5e1; padding: 5px 10px; border-radius: 14px; font-size: 11px; cursor: pointer; }
+    .history-bar { display: flex; gap: 6px; overflow-x: auto; padding: 8px 12px; background: #08090d; scrollbar-width: none; }
+    .history-bar::-webkit-scrollbar { display: none; }
+    .badge { font-size: 0.72rem; padding: 3px 8px; border-radius: 12px; font-weight: 700; white-space: nowrap; }
+    .badge.red { color: #ff5252; background: rgba(255, 82, 82, 0.12); border: 1px solid rgba(255, 82, 82, 0.25); }
+    .badge.green { color: #00e676; background: rgba(0, 230, 118, 0.12); border: 1px solid rgba(0, 230, 118, 0.25); }
 
-    .history { display: flex; gap: 6px; padding: 8px 12px; background: #0b0f16; overflow-x: auto; border-bottom: 1px solid #182232; }
-    .pill { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 10px; }
-    .p-blue { color: #38bdf8; background: rgba(56, 189, 248, 0.15); }
-    .p-purple { color: #c084fc; background: rgba(192, 132, 252, 0.15); }
-    .p-red { color: #f43f5e; background: rgba(244, 63, 94, 0.15); }
+    .display-box { position: relative; width: calc(100% - 24px); height: 210px; margin: 12px; background: radial-gradient(circle at bottom, #1b212e 0%, #0a0c10 100%); border-radius: 14px; overflow: hidden; border: 1px solid #232a3b; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .overlay-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; width: 100%; }
+    .multiplier-text { font-size: 2.8rem; font-weight: 900; letter-spacing: 1px; }
+    .status-subtext { font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 4px; color: #9ca3af; }
+    .flew-away { color: #ff334b !important; }
 
-    .arena { position: relative; height: 260px; background: radial-gradient(circle at 35% 65%, #182333 0%, #090d14 100%); overflow: hidden; }
-    canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+    .bet-panel { background: #181d28; margin: 6px 12px; padding: 12px; border-radius: 14px; border: 1px solid #242c3d; display: flex; flex-direction: column; gap: 10px; }
+    .bet-row { display: flex; gap: 10px; }
+    .bet-inputs { flex: 1.1; display: flex; flex-direction: column; gap: 8px; }
+    
+    .counter-input { display: flex; align-items: center; justify-content: space-between; background: #0d1017; border-radius: 20px; padding: 4px 8px; border: 1px solid #2d3748; }
+    .counter-btn { width: 28px; height: 28px; border-radius: 50%; background: #222a38; border: none; color: #fff; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .counter-value { font-weight: 700; font-size: 0.95rem; }
 
-    #airplane { position: absolute; width: 75px; height: 45px; z-index: 2; transform: translate(-50%, -50%); filter: drop-shadow(0 0 10px rgba(229, 37, 56, 0.8)); opacity: 0; }
-    .prop { transform-origin: 89px 28px; animation: spin 0.08s linear infinite; }
-    @keyframes spin { 0% { transform: scaleY(1); } 50% { transform: scaleY(-0.1); } 100% { transform: scaleY(1); } }
+    .quick-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .chip-btn { background: #131720; border: 1px solid #2b3345; color: #cbd5e1; padding: 6px 0; border-radius: 14px; font-weight: 700; font-size: 0.8rem; cursor: pointer; }
 
-    .hud { position: absolute; top: 48%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 3; pointer-events: none; }
-    .mult { font-size: 64px; font-weight: 900; letter-spacing: -2px; }
-    .sub { font-size: 14px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; color: #94a3b8; }
-    .crashed { color: #e52538 !important; }
-
-    .controls { padding: 12px; display: flex; flex-direction: column; gap: 10px; background: #101520; }
-    .card { background: #161d29; border: 1px solid #233044; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
-    .card-head { display: flex; justify-content: space-between; font-size: 11px; color: #8fa0b5; font-weight: bold; }
-    .card-row { display: flex; gap: 10px; height: 48px; }
-    .stepper { flex: 1; display: flex; background: #0b0e14; border: 1px solid #243347; border-radius: 8px; overflow: hidden; }
-    .stepper button { width: 34px; background: #192332; border: none; color: #fff; font-size: 18px; cursor: pointer; }
-    .stepper input { flex: 1; background: transparent; border: none; text-align: center; color: #fff; font-size: 16px; font-weight: bold; outline: none; }
-
-    .btn-act { width: 125px; border: none; border-radius: 8px; font-size: 18px; font-weight: 900; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .btn-bet { background: #22c55e; color: #052e16; }
-    .btn-cashout { background: #f59e0b; color: #451a03; box-shadow: 0 0 14px rgba(245, 158, 11, 0.4); }
-    .btn-cancel { background: #ef4444; color: #fff; }
+    .action-btn { flex: 1; border-radius: 14px; border: none; font-weight: 800; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.15s ease; text-transform: uppercase; }
+    .action-btn.bet { background: #00e676; color: #000; box-shadow: 0 4px 14px rgba(0, 230, 118, 0.3); }
+    .action-btn.cashout { background: #ff9100; color: #000; box-shadow: 0 4px 14px rgba(255, 145, 0, 0.3); }
+    .action-btn.waiting { background: #374151; color: #9ca3af; cursor: not-allowed; }
+    .action-btn .main-label { font-size: 1.05rem; }
+    .action-btn .sub-label { font-size: 0.75rem; margin-top: 2px; }
   </style>
 </head>
 <body>
 
-<!-- Auth Modal -->
-<div class="auth-overlay" id="authModal">
-  <div class="auth-card">
-    <div class="auth-brand">✈ AVIATOR</div>
-    <div class="tabs">
-      <button class="tab-btn active" id="tabLogin" onclick="switchTab('login')">LOGIN</button>
-      <button class="tab-btn" id="tabSignup" onclick="switchTab('signup')">SIGN UP</button>
-    </div>
-
-    <div class="auth-field">
-      <label>Username</label>
-      <input type="text" id="authUname" placeholder="Username daalein">
-    </div>
-
-    <div class="auth-field">
-      <label>Password</label>
-      <input type="password" id="authPass" placeholder="Password daalein">
-    </div>
-
-    <div class="auth-err" id="authErr"></div>
-    <button class="btn-submit" id="authSubmitBtn" onclick="handleAuth()">LOGIN KAREIN</button>
+<div class="container">
+  <div class="header">
+    <div class="logo"><span class="live-dot"></span> SUPERSONIC LIVE</div>
+    <div class="balance-box"><span id="walletBal">0.00</span> INR</div>
   </div>
-</div>
 
-<!-- Main Game Area -->
-<div class="app" id="gameApp">
-  <div class="top-bar">
-    <div>
-      <div class="brand">AVIATOR</div>
-      <div class="user-pill" id="userDisplay">Player</div>
-    </div>
-    <div class="top-right">
-      <div class="bal-tag">₹ <span id="bal">0.00</span></div>
-      <button class="btn-logout" onclick="logout()">Logout</button>
+  <div class="history-bar" id="historyBar"></div>
+
+  <div class="display-box">
+    <canvas id="gameCanvas"></canvas>
+    <div class="overlay-center">
+      <div id="multDisplay" class="multiplier-text">1.00x</div>
+      <div id="statusDisplay" class="status-subtext">Connecting...</div>
     </div>
   </div>
 
-  <div class="history" id="hist"></div>
-
-  <div class="arena" id="arena">
-    <canvas id="cvs"></canvas>
-
-    <svg id="airplane" viewBox="0 0 100 60">
-      <polygon points="10,29 0,25 0,33" fill="#ff7700"/>
-      <path d="M15,29 C30,22 65,22 85,27 C92,29 95,31 85,33 C65,38 30,38 15,31 Z" fill="#e52538"/>
-      <path d="M42,26 L60,8 L68,8 L54,26 Z" fill="#b91c1c"/>
-      <path d="M42,32 L60,50 L68,50 L54,32 Z" fill="#991b1b"/>
-      <ellipse cx="72" cy="27" rx="6" ry="2.5" fill="#38bdf8"/>
-      <circle cx="89" cy="29" r="3" fill="#fff"/>
-      <line class="prop" x1="89" y1="11" x2="89" y2="47" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
-    </svg>
-
-    <div class="hud">
-      <div id="mult" class="mult">1.00x</div>
-      <div id="sub" class="sub">STARTING...</div>
-    </div>
-  </div>
-
-  <div class="controls">
-    <!-- Bet Panel 1 -->
-    <div class="card">
-      <div class="card-head"><span>BET PANEL 1</span></div>
-      <div class="card-row">
-        <div class="stepper">
-          <button onclick="adj(1, -10)">-</button>
-          <input type="number" id="inp1" value="50">
-          <button onclick="adj(1, 10)">+</button>
+  <!-- Bet Panel 1 -->
+  <div class="bet-panel">
+    <div class="bet-row">
+      <div class="bet-inputs">
+        <div class="counter-input">
+          <button class="counter-btn" onclick="adjustAmount(1, -50)">−</button>
+          <span class="counter-value" id="valInput1">100</span>
+          <button class="counter-btn" onclick="adjustAmount(1, 50)">+</button>
         </div>
-        <button id="btn1" class="btn-act btn-bet" onclick="doAction(1)">
-          <span>BET</span><small style="font-size:11px;">₹50</small>
-        </button>
-      </div>
-    </div>
-
-    <!-- Bet Panel 2 -->
-    <div class="card">
-      <div class="card-head"><span>BET PANEL 2</span></div>
-      <div class="card-row">
-        <div class="stepper">
-          <button onclick="adj(2, -10)">-</button>
-          <input type="number" id="inp2" value="100">
-          <button onclick="adj(2, 10)">+</button>
+        <div class="quick-chips">
+          <button class="chip-btn" onclick="setAmount(1, 100)">100</button>
+          <button class="chip-btn" onclick="setAmount(1, 200)">200</button>
+          <button class="chip-btn" onclick="setAmount(1, 500)">500</button>
+          <button class="chip-btn" onclick="setAmount(1, 2500)">2500</button>
         </div>
-        <button id="btn2" class="btn-act btn-bet" onclick="doAction(2)">
-          <span>BET</span><small style="font-size:11px;">₹100</small>
-        </button>
       </div>
+      <button class="action-btn waiting" id="btn1" onclick="handleButtonClick(1)">
+        <span class="main-label">BET</span>
+        <span class="sub-label"><span id="subLabel1">100.00</span> INR</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Bet Panel 2 -->
+  <div class="bet-panel">
+    <div class="bet-row">
+      <div class="bet-inputs">
+        <div class="counter-input">
+          <button class="counter-btn" onclick="adjustAmount(2, -50)">−</button>
+          <span class="counter-value" id="valInput2">100</span>
+          <button class="counter-btn" onclick="adjustAmount(2, 50)">+</button>
+        </div>
+        <div class="quick-chips">
+          <button class="chip-btn" onclick="setAmount(2, 100)">100</button>
+          <button class="chip-btn" onclick="setAmount(2, 200)">200</button>
+          <button class="chip-btn" onclick="setAmount(2, 500)">500</button>
+          <button class="chip-btn" onclick="setAmount(2, 2500)">2500</button>
+        </div>
+      </div>
+      <button class="action-btn waiting" id="btn2" onclick="handleButtonClick(2)">
+        <span class="main-label">BET</span>
+        <span class="sub-label"><span id="subLabel2">100.00</span> INR</span>
+      </button>
     </div>
   </div>
 </div>
 
 <script>
-  let mode = 'login';
-  let token = localStorage.getItem('aviator_tok');
-  let socket = null;
-  let balance = 0.00;
+  const socket = io();
+
+  let gameState = "WAITING";
   let currentMultiplier = 1.00;
-  let gameState = 'WAITING';
+  let elapsedSeconds = 0;
 
-  const bets = { 1: { active: false, amt: 0 }, 2: { active: false, amt: 0 } };
+  let panelData = {
+    1: { amount: 100, placed: false, cashedOut: false },
+    2: { amount: 100, placed: false, cashedOut: false }
+  };
 
-  const cvs = document.getElementById("cvs");
-  const ctx = cvs.getContext("2d");
-  const arena = document.getElementById("arena");
-  const plane = document.getElementById("airplane");
-  const multText = document.getElementById("mult");
-  const subText = document.getElementById("sub");
-  const histEl = document.getElementById("hist");
-  const balEl = document.getElementById("bal");
-  const userDisplay = document.getElementById("userDisplay");
+  const multDisplay = document.getElementById("multDisplay");
+  const statusDisplay = document.getElementById("statusDisplay");
+  const walletBal = document.getElementById("walletBal");
+  const historyBar = document.getElementById("historyBar");
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
 
-  function switchTab(m) {
-    mode = m;
-    document.getElementById("authErr").textContent = "";
-    document.getElementById("tabLogin").className = m === 'login' ? 'tab-btn active' : 'tab-btn';
-    document.getElementById("tabSignup").className = m === 'signup' ? 'tab-btn active' : 'tab-btn';
-    document.getElementById("authSubmitBtn").textContent = m === 'login' ? 'LOGIN KAREIN' : 'SIGN UP (FREE ₹1,000)';
+  function resizeCanvas() {
+    canvas.width = canvas.parentElement.clientWidth;
+    canvas.height = canvas.parentElement.clientHeight;
+  }
+  window.addEventListener("resize", resizeCanvas);
+  resizeCanvas();
+
+  function renderHistory(list) {
+    historyBar.innerHTML = "";
+    list.forEach(val => {
+      const badge = document.createElement("span");
+      badge.className = `badge ${val >= 2.0 ? "green" : "red"}`;
+      badge.innerText = val.toFixed(2) + "X";
+      historyBar.appendChild(badge);
+    });
   }
 
-  async function handleAuth() {
-    const username = document.getElementById("authUname").value.trim();
-    const password = document.getElementById("authPass").value;
-    const errEl = document.getElementById("authErr");
-    errEl.textContent = "";
+  // Socket Events
+  socket.on("init_player", (data) => {
+    walletBal.innerText = data.balance.toFixed(2);
+    renderHistory(data.history);
+    gameState = data.state;
+    if (gameState === "WAITING") {
+      statusDisplay.innerText = `NEXT ROUND IN ${data.countdown}s`;
+    }
+    updateUI();
+  });
 
-    try {
-      const res = await fetch(mode === 'login' ? '/api/login' : '/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        errEl.textContent = data.error || "Galti hui!";
-        return;
+  socket.on("game_state", (data) => {
+    gameState = data.state;
+    if (data.state === "WAITING") {
+      elapsedSeconds = 0;
+      currentMultiplier = 1.00;
+      multDisplay.classList.remove("flew-away");
+      statusDisplay.classList.remove("flew-away");
+      multDisplay.innerText = "1.00x";
+      statusDisplay.innerText = `NEXT ROUND IN ${data.countdown}s`;
+      panelData[1].placed = false; panelData[1].cashedOut = false;
+      panelData[2].placed = false; panelData[2].cashedOut = false;
+      renderHistory(data.history);
+    } else if (data.state === "FLYING") {
+      statusDisplay.innerText = "ROUND ACTIVE";
+    }
+    updateUI();
+  });
+
+  socket.on("countdown_tick", (data) => {
+    if (gameState === "WAITING") {
+      statusDisplay.innerText = `NEXT ROUND IN ${data.countdown}s`;
+    }
+  });
+
+  socket.on("multiplier_tick", (data) => {
+    currentMultiplier = data.multiplier;
+    elapsedSeconds = data.elapsed;
+    multDisplay.innerText = currentMultiplier.toFixed(2) + "x";
+    updateUI();
+  });
+
+  socket.on("game_crash", (data) => {
+    gameState = "CRASHED";
+    currentMultiplier = data.crashPoint;
+    multDisplay.innerText = currentMultiplier.toFixed(2) + "x";
+    multDisplay.classList.add("flew-away");
+    statusDisplay.classList.add("flew-away");
+    statusDisplay.innerText = "FLEW AWAY!";
+    renderHistory(data.history);
+    updateUI();
+  });
+
+  socket.on("bet_confirmed", ({ panel, balance }) => {
+    panelData[panel].placed = true;
+    panelData[panel].cashedOut = false;
+    walletBal.innerText = balance.toFixed(2);
+    updateUI();
+  });
+
+  socket.on("cashout_success", ({ panel, balance }) => {
+    panelData[panel].cashedOut = true;
+    walletBal.innerText = balance.toFixed(2);
+    updateUI();
+  });
+
+  // User Actions
+  function adjustAmount(panel, val) {
+    if (panelData[panel].placed) return;
+    panelData[panel].amount = Math.max(10, panelData[panel].amount + val);
+    document.getElementById(`valInput${panel}`).innerText = panelData[panel].amount;
+    document.getElementById(`subLabel${panel}`).innerText = panelData[panel].amount.toFixed(2);
+  }
+
+  function setAmount(panel, amt) {
+    if (panelData[panel].placed) return;
+    panelData[panel].amount = amt;
+    document.getElementById(`valInput${panel}`).innerText = amt;
+    document.getElementById(`subLabel${panel}`).innerText = amt.toFixed(2);
+  }
+
+  function handleButtonClick(panel) {
+    const p = panelData[panel];
+    if (gameState === "WAITING" && !p.placed) {
+      socket.emit("place_bet", { panel, amount: p.amount });
+    } else if (gameState === "FLYING" && p.placed && !p.cashedOut) {
+      socket.emit("cashout", { panel });
+    }
+  }
+
+  function updateUI() {
+    [1, 2].forEach(p => {
+      const btn = document.getElementById(`btn${p}`);
+      const data = panelData[p];
+
+      if (gameState === "WAITING") {
+        if (data.placed) {
+          btn.className = "action-btn waiting";
+          btn.innerHTML = `<span class="main-label">WAITING</span><span class="sub-label">Starting soon</span>`;
+        } else {
+          btn.className = "action-btn bet";
+          btn.innerHTML = `<span class="main-label">BET</span><span class="sub-label">${data.amount.toFixed(2)} INR</span>`;
+        }
+      } else if (gameState === "FLYING") {
+        if (data.placed && !data.cashedOut) {
+          const cashAmt = (data.amount * currentMultiplier).toFixed(2);
+          btn.className = "action-btn cashout";
+          btn.innerHTML = `<span class="main-label">CASHOUT</span><span class="sub-label">${cashAmt} INR</span>`;
+        } else if (data.cashedOut) {
+          btn.className = "action-btn waiting";
+          btn.innerHTML = `<span class="main-label">WON</span><span class="sub-label">Cashed Out</span>`;
+        } else {
+          btn.className = "action-btn waiting";
+          btn.innerHTML = `<span class="main-label">IN FLIGHT</span><span class="sub-label">Wait next round</span>`;
+        }
+      } else if (gameState === "CRASHED") {
+        btn.className = "action-btn waiting";
+        btn.innerHTML = `<span class="main-label">CRASHED</span><span class="sub-label">Round Ended</span>`;
       }
-      localStorage.setItem('aviator_tok', data.token);
-      token = data.token;
-      startGame(data.user);
-    } catch(e) {
-      errEl.textContent = "Server se connect nahi ho saka.";
+    });
+  }
+
+  // Animation Canvas Loop
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Subtle grid
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
+    ctx.lineWidth = 1;
+    for (let x = 0; x < canvas.width; x += 35) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
     }
-  }
-
-  async function checkToken() {
-    if (!token) return;
-    try {
-      const res = await fetch('/api/me', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) startGame(data.user);
-      else localStorage.removeItem('aviator_tok');
-    } catch(e) {}
-  }
-  checkToken();
-
-  function logout() {
-    localStorage.removeItem('aviator_tok');
-    location.reload();
-  }
-
-  function startGame(user) {
-    document.getElementById("authModal").style.display = "none";
-    document.getElementById("gameApp").style.display = "flex";
-    userDisplay.textContent = user.username;
-    balance = parseFloat(user.balance);
-    balEl.textContent = balance.toFixed(2);
-
-    cvs.width = arena.clientWidth;
-    cvs.height = arena.clientHeight;
-    window.addEventListener('resize', () => { cvs.width = arena.clientWidth; cvs.height = arena.clientHeight; });
-
-    connectSocket();
-  }
-
-  function connectSocket() {
-    socket = io({ transports: ['polling', 'websocket'] });
-    socket.on('connect', () => socket.emit('auth_socket', token));
-    socket.on('balance_update', (b) => { balance = parseFloat(b); balEl.textContent = balance.toFixed(2); });
-    socket.on('init_sync', d => renderHist(d.history));
-
-    socket.on('tick_waiting', (d) => {
-      gameState = 'WAITING';
-      multText.style.display = "none";
-      subText.style.display = "block";
-      subText.textContent = "WAITING: " + d.countdown + "s";
-      plane.style.opacity = "0";
-      ctx.clearRect(0, 0, cvs.width, cvs.height);
-    });
-
-    socket.on('state_waiting', (d) => {
-      gameState = 'WAITING';
-      multText.style.display = "none";
-      subText.style.display = "block";
-      subText.textContent = "WAITING: " + d.countdown + "s";
-      plane.style.opacity = "0";
-      ctx.clearRect(0, 0, cvs.width, cvs.height);
-    });
-
-    socket.on('state_flying', () => {
-      gameState = 'FLYING';
-      subText.style.display = "none";
-      multText.style.display = "block";
-      multText.className = "mult";
-      plane.style.opacity = "1";
-
-      [1, 2].forEach(id => {
-        if (bets[id].active) setBtn(id, "CASHOUT", bets[id].amt);
-      });
-    });
-
-    socket.on('tick_multiplier', (d) => {
-      if (gameState !== 'FLYING') return;
-      currentMultiplier = d.multiplier;
-      multText.textContent = currentMultiplier.toFixed(2) + "x";
-
-      [1, 2].forEach(id => {
-        if (bets[id].active) setBtn(id, "CASHOUT", (bets[id].amt * currentMultiplier).toFixed(2));
-      });
-
-      drawFlight(currentMultiplier);
-    });
-
-    socket.on('state_crashed', (d) => {
-      gameState = 'CRASHED';
-      multText.textContent = d.crashPoint.toFixed(2) + "x";
-      multText.className = "mult crashed";
-      subText.textContent = "FLEW AWAY!";
-      subText.className = "sub crashed";
-      subText.style.display = "block";
-
-      plane.style.transition = "all 0.4s ease-out";
-      plane.style.left = (cvs.width + 120) + "px";
-      plane.style.top = "-40px";
-
-      renderHist(d.history);
-
-      [1, 2].forEach(id => {
-        bets[id].active = false;
-        setBtn(id, "BET", document.getElementById("inp" + id).value);
-      });
-
-      setTimeout(() => plane.style.transition = "opacity 0.2s", 400);
-    });
-
-    socket.on('cashout_success', (d) => {
-      bets[d.betId].active = false;
-      setBtn(d.betId, "BET", document.getElementById("inp" + d.betId).value);
-    });
-  }
-
-  function drawFlight(m) {
-    ctx.clearRect(0, 0, cvs.width, cvs.height);
-    const startX = 35;
-    const startY = cvs.height - 35;
-    const p = Math.min((m - 1.0) / 7.0, 1.0);
-
-    const endX = startX + (cvs.width - 110) * Math.pow(p, 0.85);
-    const endY = startY - (cvs.height - 70) * Math.pow(p, 1.35);
-    const cpX = startX + (endX - startX) * 0.5;
-    const cpY = startY;
-
-    const grad = ctx.createLinearGradient(0, endY, 0, cvs.height);
-    grad.addColorStop(0, "rgba(229, 37, 56, 0.35)");
-    grad.addColorStop(1, "rgba(229, 37, 56, 0)");
-    ctx.beginPath();
-    ctx.moveTo(startX, startY);
-    ctx.quadraticCurveTo(cpX, cpY, endX, endY);
-    ctx.lineTo(endX, startY);
-    ctx.fillStyle = grad;
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(startX, startY);
-    ctx.quadraticCurveTo(cpX, cpY, endX, endY);
-    ctx.strokeStyle = "#e52538";
-    ctx.lineWidth = 4;
-    ctx.stroke();
-
-    const angle = Math.atan2(endY - cpY, endX - cpX) * (180 / Math.PI) * 0.45;
-    plane.style.left = endX + "px";
-    plane.style.top = endY + "px";
-    plane.style.transform = "translate(-50%, -50%) rotate(" + angle + "deg)";
-  }
-
-  function renderHist(list) {
-    histEl.innerHTML = "";
-    list.forEach(v => {
-      const s = document.createElement("span");
-      s.className = "pill " + (v >= 10 ? "p-red" : v >= 2 ? "p-purple" : "p-blue");
-      s.textContent = parseFloat(v).toFixed(2) + "x";
-      histEl.appendChild(s);
-    });
-  }
-
-  function doAction(id) {
-    if (gameState === 'FLYING' && bets[id].active) {
-      socket.emit('request_cashout', { betId: id });
-    } else {
-      const amt = parseFloat(document.getElementById("inp" + id).value);
-      if (amt > balance || isNaN(amt) || amt <= 0) return alert("Balance kam hai!");
-
-      bets[id].amt = amt;
-      bets[id].active = true;
-      setBtn(id, gameState === 'WAITING' ? "CANCEL" : "BET", amt);
-      socket.emit('place_bet', { betId: id, amount: amt });
+    for (let y = 0; y < canvas.height; y += 35) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
     }
-  }
 
-  function setBtn(id, type, val) {
-    const b = document.getElementById("btn" + id);
-    b.className = "btn-act";
-    if (type === "BET") {
-      b.classList.add("btn-bet");
-      b.innerHTML = "<span>BET</span><small style='font-size:11px;'>₹" + val + "</small>";
-    } else if (type === "CASHOUT") {
-      b.classList.add("btn-cashout");
-      b.innerHTML = "<span>CASH OUT</span><small style='font-size:11px;'>₹" + val + "</small>";
-    } else if (type === "CANCEL") {
-      b.classList.add("btn-cancel");
-      b.innerHTML = "<span>WAITING</span><small style='font-size:11px;'>₹" + val + "</small>";
+    if (gameState === "FLYING") {
+      const progress = Math.min(elapsedSeconds / 12, 1);
+      const startX = 25;
+      const startY = canvas.height - 25;
+      const currentX = startX + (canvas.width - 70) * progress;
+      const currentY = startY - (canvas.height - 70) * Math.pow(progress, 1.4);
+
+      // Line
+      ctx.beginPath();
+      ctx.strokeStyle = "#00e676";
+      ctx.lineWidth = 3.5;
+      ctx.moveTo(startX, startY);
+      ctx.quadraticCurveTo(startX + (currentX - startX) * 0.5, startY, currentX, currentY);
+      ctx.stroke();
+
+      // Rocket point
+      ctx.beginPath();
+      ctx.arc(currentX, currentY, 6, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.shadowColor = "#00e676";
+      ctx.shadowBlur = 12;
+      ctx.fill();
+      ctx.shadowBlur = 0;
     }
-  }
 
-  function adj(id, delta) {
-    const el = document.getElementById("inp" + id);
-    el.value = Math.max(10, (parseFloat(el.value) || 0) + delta);
-    if (!bets[id].active) setBtn(id, "BET", el.value);
+    requestAnimationFrame(draw);
   }
+  requestAnimationFrame(draw);
 </script>
 </body>
 </html>
