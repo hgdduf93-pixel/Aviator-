@@ -9,7 +9,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// Cache disable
+// Cache disable taaki browser hamesha fresh code uthaye
 app.use((req, res, next) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.set('Pragma', 'no-cache');
@@ -40,25 +40,24 @@ function hashPassword(pass) {
   return crypto.createHash('sha256').update(pass).digest('hex');
 }
 
-// 1. SIGN UP API (Email + Password)
+// 1. SIGN UP API
 app.post('/api/signup', (req, res) => {
-  const email = (req.body.email || '').trim().toLowerCase();
-  const password = (req.body.password || '').trim();
+  let email = (req.body.email || '').trim().toLowerCase();
+  let password = (req.body.password || '').trim();
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!email || !emailRegex.test(email)) {
-    return res.status(400).json({ success: false, message: "Kripya sahi Email ID daalein (e.g. name@gmail.com)!" });
+  if (!email || !email.includes('@') || !email.includes('.')) {
+    return res.status(400).json({ success: false, message: "Kripya sahi Email ID daalein (e.g. rahul@gmail.com)!" });
   }
 
-  if (!password || password.length < 4) {
-    return res.status(400).json({ success: false, message: "Password kam se kam 4 akshar ka hona chahiye!" });
+  if (!password || password.length < 3) {
+    return res.status(400).json({ success: false, message: "Password kam se kam 3 akshar ka hona chahiye!" });
   }
 
   if (users[email]) {
-    return res.status(400).json({ success: false, message: "Yeh Email pehle se registered hai! Login karein." });
+    return res.status(400).json({ success: false, message: "Yeh Email pehle se registered hai! Kripya LOGIN karein." });
   }
 
-  // Account creation with ₹500 bonus
+  // Account create with ₹500 balance
   users[email] = {
     passwordHash: hashPassword(password),
     balance: 500.00,
@@ -66,27 +65,35 @@ app.post('/api/signup', (req, res) => {
   };
   saveUsers();
 
+  console.log(`[NEW USER REGISTERED] Email: ${email} | Balance: ₹500`);
+
   return res.json({
     success: true,
     email: email,
     balance: users[email].balance,
-    message: "Registration safal raha! ₹500 bonus add ho gaya."
+    message: "Account safaltapoorvak ban gaya!"
   });
 });
 
-// 2. LOGIN API (Email + Password)
+// 2. LOGIN API
 app.post('/api/login', (req, res) => {
-  const email = (req.body.email || '').trim().toLowerCase();
-  const password = (req.body.password || '').trim();
+  let email = (req.body.email || '').trim().toLowerCase();
+  let password = (req.body.password || '').trim();
 
   if (!email || !password) {
-    return res.status(400).json({ success: false, message: "Email aur Password dono daalein!" });
+    return res.status(400).json({ success: false, message: "Email aur Password dono bharna zaroori hai!" });
   }
 
   const user = users[email];
-  if (!user || user.passwordHash !== hashPassword(password)) {
-    return res.status(400).json({ success: false, message: "Galat Email ya Password!" });
+  if (!user) {
+    return res.status(400).json({ success: false, message: "Yeh email registered nahi hai! Pehle SIGN UP karein." });
   }
+
+  if (user.passwordHash !== hashPassword(password)) {
+    return res.status(400).json({ success: false, message: "Galat Password! Kripya sahi password daalein." });
+  }
+
+  console.log(`[USER LOGGED IN] Email: ${email}`);
 
   return res.json({
     success: true,
@@ -196,6 +203,7 @@ io.on('connection', (socket) => {
   io.emit('online_count', onlineSockets.size);
 
   socket.on('set_user_email', ({ email }) => {
+    email = (email || '').trim().toLowerCase();
     if (email && users[email]) {
       const p = onlineSockets.get(socket.id);
       if (p) p.email = email;
@@ -215,7 +223,7 @@ io.on('connection', (socket) => {
     }
 
     const betObj = panel === 1 ? p.bet1 : p.bet2;
-    user.balance -= amount;
+    user.balance = +(user.balance - amount).toFixed(2);
     saveUsers();
 
     betObj.amount = amount;
@@ -235,7 +243,7 @@ io.on('connection', (socket) => {
     const betObj = panel === 1 ? p.bet1 : p.bet2;
 
     if (betObj.queued || (betObj.active && gameState === 'COUNTDOWN')) {
-      user.balance += betObj.amount;
+      user.balance = +(user.balance + betObj.amount).toFixed(2);
       saveUsers();
       betObj.active = false;
       betObj.queued = false;
@@ -254,7 +262,7 @@ io.on('connection', (socket) => {
 
     if (betObj.active && !betObj.cashedOut) {
       const win = +(betObj.amount * multiplier).toFixed(2);
-      user.balance += win;
+      user.balance = +(user.balance + win).toFixed(2);
       saveUsers();
       betObj.cashedOut = true;
       socket.emit('cashout_success', { panel, winAmount: win, balance: user.balance, multiplier });
@@ -273,6 +281,5 @@ startCountdown();
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server live on port ${PORT}`);
+  console.log(`Aviator Server live on port ${PORT}`);
 });
-    
