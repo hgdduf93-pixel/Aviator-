@@ -2,12 +2,29 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
+// Static folders support (root + public dono support karega)
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
+
+// Default Route: index.html jahan bhi milegi wahan se load karega
+app.get('/', (req, res) => {
+  const publicPath = path.join(__dirname, 'public', 'index.html');
+  const rootPath = path.join(__dirname, 'index.html');
+
+  if (fs.existsSync(publicPath)) {
+    res.sendFile(publicPath);
+  } else if (fs.existsSync(rootPath)) {
+    res.sendFile(rootPath);
+  } else {
+    res.send("<h2 style='color:red;font-family:sans-serif;text-align:center;margin-top:50px;'>Error: index.html file GitHub par nahi mili! Kripya check karein ki index.html file banayi hai ya nahi.</h2>");
+  }
+});
 
 let gameState = 'WAITING';
 let currentMultiplier = 1.00;
@@ -122,3 +139,4 @@ server.listen(PORT, () => {
   console.log(`Live on port ${PORT}`);
   startWaitingPhase();
 });
+                                        
