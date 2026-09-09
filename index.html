@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aviator Live - Real Phone Auth</title>
+  <title>Aviator Live - Phone Verify</title>
   <script src="/socket.io/socket.io.js"></script>
   
   <!-- Firebase SDKs -->
@@ -11,408 +11,79 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      user-select: none;
-    }
-
-    body {
-      background-color: #0c0f17;
-      color: #fff;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      padding: 8px;
-    }
-
-    .app-container {
-      width: 100%;
-      max-width: 950px;
-      background: #121622;
-      border: 1px solid #232a3d;
-      border-radius: 16px;
-      padding: 14px;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.8);
-      position: relative;
-    }
-
-    /* Top Nav */
-    .top-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .title {
-      font-size: 22px;
-      font-weight: 900;
-      font-style: italic;
-      color: #ff2b44;
-      letter-spacing: 1px;
-    }
-
-    .user-info-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .badge {
-      font-size: 11px;
-      color: #2ed573;
-      background: rgba(46, 213, 115, 0.1);
-      padding: 4px 10px;
-      border-radius: 12px;
-      border: 1px solid rgba(46, 213, 115, 0.25);
-    }
-
-    .wallet {
-      background: #1a2130;
-      border: 1px solid #2c3852;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-weight: 700;
-      color: #2ecc71;
-      font-size: 14px;
-      text-align: right;
-    }
-
-    .user-phone-label {
-      font-size: 11px;
-      color: #8c9cb3;
-      display: block;
-      line-height: 1;
-      margin-bottom: 3px;
-    }
-
-    .logout-btn {
-      background: #232c40;
-      border: none;
-      color: #ff5252;
-      padding: 6px 10px;
-      border-radius: 8px;
-      font-size: 12px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    /* Multiplier History */
-    .history-row {
-      display: flex;
-      gap: 6px;
-      overflow-x: auto;
-      margin-bottom: 10px;
-      scrollbar-width: none;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; }
+    body { background-color: #0c0f17; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 8px; }
+    .app-container { width: 100%; max-width: 950px; background: #121622; border: 1px solid #232a3d; border-radius: 16px; padding: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.8); position: relative; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .title { font-size: 22px; font-weight: 900; font-style: italic; color: #ff2b44; letter-spacing: 1px; }
+    .user-info-group { display: flex; align-items: center; gap: 8px; }
+    .badge { font-size: 11px; color: #2ed573; background: rgba(46, 213, 115, 0.1); padding: 4px 10px; border-radius: 12px; border: 1px solid rgba(46, 213, 115, 0.25); }
+    .wallet { background: #1a2130; border: 1px solid #2c3852; padding: 6px 14px; border-radius: 20px; font-weight: 700; color: #2ecc71; font-size: 14px; text-align: right; }
+    .user-phone-label { font-size: 11px; color: #8c9cb3; display: block; line-height: 1; margin-bottom: 3px; }
+    .logout-btn { background: #232c40; border: none; color: #ff5252; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; }
+    .history-row { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 10px; scrollbar-width: none; }
     .history-row::-webkit-scrollbar { display: none; }
-
-    .history-pill {
-      padding: 3px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 700;
-      background: #171d2b;
-      color: #5ea8f5;
-      border: 1px solid #24314c;
-      white-space: nowrap;
-    }
-    .history-pill.top {
-      color: #c950e8;
-      border-color: #8b349b;
-    }
-
-    /* Stage Canvas */
-    .stage {
-      position: relative;
-      width: 100%;
-      height: 330px;
-      background: radial-gradient(circle at 10% 90%, #20111f 0%, #090c13 75%);
-      border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid #1f2738;
-    }
-
-    canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-
-    .center-overlay {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      text-align: center;
-      pointer-events: none;
-      z-index: 5;
-    }
-
-    .current-mult {
-      font-size: 58px;
-      font-weight: 900;
-      line-height: 1;
-      text-shadow: 0 4px 18px rgba(0,0,0,0.8);
-    }
-
-    .status-note {
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      color: #78859b;
-      margin-top: 6px;
-    }
-
-    .crash-red {
-      color: #ff2b44 !important;
-    }
-
-    /* Bet Panels */
-    .bet-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    @media (max-width: 650px) {
-      .bet-grid { grid-template-columns: 1fr; }
-      .stage { height: 250px; }
-      .current-mult { font-size: 42px; }
-    }
-
-    .card {
-      background: #161b27;
-      border: 1px solid #232c40;
-      border-radius: 12px;
-      padding: 10px 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .card-top {
-      display: flex;
-      justify-content: space-between;
-      font-size: 11px;
-      color: #7b889e;
-      font-weight: 600;
-    }
-
-    .auto-cash-group {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .auto-cash-group input[type="number"] {
-      width: 52px;
-      background: #0b0e14;
-      border: 1px solid #28334b;
-      color: #fff;
-      border-radius: 4px;
-      font-size: 11px;
-      text-align: center;
-      padding: 2px;
-    }
-
-    .controls-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
-    .input-wrapper {
-      background: #0a0d14;
-      border: 1px solid #29344c;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-    }
-
-    .input-wrapper input {
-      width: 100%;
-      background: transparent;
-      border: none;
-      color: #fff;
-      font-size: 16px;
-      font-weight: 700;
-      text-align: center;
-      outline: none;
-    }
-
-    .action-btn {
-      height: 46px;
-      border: none;
-      border-radius: 8px;
-      font-size: 15px;
-      font-weight: 800;
-      color: #fff;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-transform: uppercase;
-      transition: filter 0.2s;
-    }
+    .history-pill { padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; background: #171d2b; color: #5ea8f5; border: 1px solid #24314c; white-space: nowrap; }
+    .history-pill.top { color: #c950e8; border-color: #8b349b; }
+    .stage { position: relative; width: 100%; height: 330px; background: radial-gradient(circle at 10% 90%, #20111f 0%, #090c13 75%); border-radius: 12px; overflow: hidden; border: 1px solid #1f2738; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .center-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; z-index: 5; }
+    .current-mult { font-size: 58px; font-weight: 900; line-height: 1; text-shadow: 0 4px 18px rgba(0,0,0,0.8); }
+    .status-note { font-size: 13px; font-weight: 700; letter-spacing: 2px; color: #78859b; margin-top: 6px; }
+    .crash-red { color: #ff2b44 !important; }
+    .bet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+    @media (max-width: 650px) { .bet-grid { grid-template-columns: 1fr; } .stage { height: 250px; } .current-mult { font-size: 42px; } }
+    .card { background: #161b27; border: 1px solid #232c40; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+    .card-top { display: flex; justify-content: space-between; font-size: 11px; color: #7b889e; font-weight: 600; }
+    .auto-cash-group { display: flex; align-items: center; gap: 4px; }
+    .auto-cash-group input[type="number"] { width: 52px; background: #0b0e14; border: 1px solid #28334b; color: #fff; border-radius: 4px; font-size: 11px; text-align: center; padding: 2px; }
+    .controls-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .input-wrapper { background: #0a0d14; border: 1px solid #29344c; border-radius: 8px; display: flex; align-items: center; }
+    .input-wrapper input { width: 100%; background: transparent; border: none; color: #fff; font-size: 16px; font-weight: 700; text-align: center; outline: none; }
+    .action-btn { height: 46px; border: none; border-radius: 8px; font-size: 15px; font-weight: 800; color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; text-transform: uppercase; transition: filter 0.2s; }
     .action-btn:hover { filter: brightness(1.1); }
-
     .btn-green { background: linear-gradient(180deg, #2ecc71, #27ae60); }
     .btn-orange { background: linear-gradient(180deg, #f39c12, #d35400); animation: pulse 1s infinite alternate; }
     .btn-red { background: linear-gradient(180deg, #e74c3c, #c0392b); }
-
     .btn-sub { font-size: 10px; opacity: 0.9; }
-
-    .quick-chips {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 5px;
-    }
-
-    .chip-btn {
-      background: #0f131d;
-      border: 1px solid #232c40;
-      color: #8c9cb3;
-      padding: 4px;
-      border-radius: 6px;
-      font-size: 10px;
-      font-weight: 700;
-      cursor: pointer;
-    }
+    .quick-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+    .chip-btn { background: #0f131d; border: 1px solid #232c40; color: #8c9cb3; padding: 4px; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer; }
     .chip-btn:hover { background: #222b3f; color: #fff; }
-
-    .live-bets {
-      margin-top: 10px;
-      background: #0a0d14;
-      border: 1px solid #1c2332;
-      border-radius: 8px;
-      padding: 8px 12px;
-      max-height: 75px;
-      overflow-y: auto;
-      font-size: 11px;
-    }
+    .live-bets { margin-top: 10px; background: #0a0d14; border: 1px solid #1c2332; border-radius: 8px; padding: 8px 12px; max-height: 75px; overflow-y: auto; font-size: 11px; }
     .live-row { display: flex; justify-content: space-between; color: #78859b; padding: 2px 0; }
     .live-row.win { color: #2ecc71; }
+    @keyframes pulse { 0% { box-shadow: 0 0 5px rgba(243, 156, 18, 0.4); } 100% { box-shadow: 0 0 15px rgba(243, 156, 18, 0.85); } }
 
-    @keyframes pulse {
-      0% { box-shadow: 0 0 5px rgba(243, 156, 18, 0.4); }
-      100% { box-shadow: 0 0 15px rgba(243, 156, 18, 0.85); }
-    }
-
-    /* REAL PHONE OTP MODAL */
-    .auth-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(10, 13, 20, 0.95);
-      backdrop-filter: blur(8px);
-      z-index: 100;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      border-radius: 16px;
-    }
-
-    .auth-card {
-      width: 90%;
-      max-width: 360px;
-      background: #161b29;
-      border: 1px solid #2b354d;
-      border-radius: 16px;
-      padding: 24px 20px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.8);
-      text-align: center;
-    }
-
-    .auth-card h3 {
-      font-size: 20px;
-      color: #ff2b44;
-      margin-bottom: 4px;
-      font-weight: 900;
-    }
-
-    .auth-card p {
-      font-size: 12px;
-      color: #7b889e;
-      margin-bottom: 18px;
-    }
-
-    .phone-input-group {
-      display: flex;
-      gap: 6px;
-      margin-bottom: 12px;
-    }
-
-    .prefix {
-      background: #0a0d14;
-      border: 1px solid #273249;
-      color: #aaa;
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: bold;
-    }
-
-    .auth-input {
-      width: 100%;
-      background: #0a0d14;
-      border: 1px solid #273249;
-      color: #fff;
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 15px;
-      outline: none;
-    }
+    /* AUTH MODAL */
+    .auth-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 13, 20, 0.95); backdrop-filter: blur(8px); z-index: 100; display: flex; justify-content: center; align-items: center; border-radius: 16px; }
+    .auth-card { width: 90%; max-width: 360px; background: #161b29; border: 1px solid #2b354d; border-radius: 16px; padding: 24px 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.8); text-align: center; }
+    .auth-card h3 { font-size: 20px; color: #ff2b44; margin-bottom: 4px; font-weight: 900; }
+    .auth-card p { font-size: 12px; color: #7b889e; margin-bottom: 18px; }
+    .phone-input-group { display: flex; gap: 6px; margin-bottom: 12px; }
+    .prefix { background: #0a0d14; border: 1px solid #273249; color: #aaa; padding: 12px; border-radius: 8px; font-size: 14px; font-weight: bold; }
+    .auth-input { width: 100%; background: #0a0d14; border: 1px solid #273249; color: #fff; padding: 12px; border-radius: 8px; font-size: 15px; outline: none; }
     .auth-input:focus { border-color: #ff2b44; }
-
-    .auth-btn {
-      width: 100%;
-      background: linear-gradient(180deg, #2ecc71, #27ae60);
-      border: none;
-      color: #fff;
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 15px;
-      font-weight: 800;
-      cursor: pointer;
-      text-transform: uppercase;
-      margin-top: 6px;
-    }
-
-    .auth-msg {
-      font-size: 12px;
-      margin-top: 10px;
-      color: #ff4757;
-      min-height: 16px;
-    }
-
-    #otp-section {
-      display: none;
-      margin-top: 12px;
-    }
+    .auth-btn { width: 100%; background: linear-gradient(180deg, #2ecc71, #27ae60); border: none; color: #fff; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 800; cursor: pointer; text-transform: uppercase; margin-top: 6px; }
+    .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .auth-msg { font-size: 12px; margin-top: 10px; color: #ff4757; min-height: 18px; word-break: break-word; font-weight: 600; }
+    #otp-section { display: none; margin-top: 12px; }
+    #recaptcha-container { display: flex; justify-content: center; margin-bottom: 8px; }
   </style>
 </head>
 <body>
 
   <div class="app-container">
-    <!-- REAL PHONE AUTH MODAL -->
+    <!-- AUTH MODAL -->
     <div class="auth-overlay" id="auth-modal">
       <div class="auth-card">
-        <h3>AVIATOR LOGIN</h3>
-        <p>Apna Real Mobile Number verify karein</p>
+        <h3>AVIATOR VERIFY</h3>
+        <p>Real Mobile Number se Login / Play karein</p>
 
-        <!-- Step 1: Mobile Number Input -->
+        <!-- Step 1: Phone Input -->
         <div id="phone-section">
           <div class="phone-input-group">
             <span class="prefix">+91</span>
-            <input type="tel" id="user-phone" class="auth-input" placeholder="Enter Mobile Number" maxlength="10">
+            <input type="tel" id="user-phone" class="auth-input" placeholder="10-digit Mobile No." maxlength="10">
           </div>
           <div id="recaptcha-container"></div>
           <button class="auth-btn" id="send-otp-btn" onclick="sendOTP()">SEND OTP</button>
@@ -420,15 +91,15 @@
 
         <!-- Step 2: OTP Input -->
         <div id="otp-section">
-          <input type="number" id="otp-input" class="auth-input" placeholder="Enter 6-digit OTP" maxlength="6" style="text-align: center; letter-spacing: 5px; font-size: 18px;">
-          <button class="auth-btn" style="background: linear-gradient(180deg, #ff2b44, #c0392b); margin-top: 10px;" onclick="verifyOTP()">VERIFY OTP</button>
+          <input type="number" id="otp-input" class="auth-input" placeholder="Enter 6-digit OTP" maxlength="6" style="text-align: center; letter-spacing: 6px; font-size: 18px;">
+          <button class="auth-btn" id="verify-btn" style="background: linear-gradient(180deg, #ff2b44, #c0392b); margin-top: 10px;" onclick="verifyOTP()">VERIFY & PLAY</button>
         </div>
 
         <div class="auth-msg" id="auth-msg"></div>
       </div>
     </div>
 
-    <!-- Top Navigation Bar -->
+    <!-- Top Bar -->
     <div class="top-bar">
       <div class="title">AVIATOR LIVE</div>
       <div class="user-info-group">
@@ -489,7 +160,6 @@
       </div>
     </div>
 
-    <!-- Live Bets Stream with Masked Phone Numbers -->
     <div class="live-bets" id="live-bets"><div class="live-row"><span>Connecting network...</span></div></div>
   </div>
 
@@ -504,62 +174,111 @@
       appId: "1:478890292016:web:ba39ce61bc378397d84ef5",
       measurementId: "G-88TGJQBCP0"
     };
-    firebase.initializeApp(firebaseConfig);
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
 
     const socket = io();
     let confirmationResult = null;
     let currentUserPhone = null;
 
-    // Invisible Recaptcha
-    window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-      'size': 'invisible'
+    function initRecaptcha() {
+      if (!window.recaptchaVerifier) {
+        window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+          'size': 'normal',
+          'callback': () => {
+            document.getElementById("auth-msg").textContent = "";
+          },
+          'expired-callback': () => {
+            document.getElementById("auth-msg").textContent = "Captcha expired, dubara tick karein!";
+          }
+        });
+        window.recaptchaVerifier.render();
+      }
+    }
+
+    // Lazy load recaptcha after page is visible
+    window.addEventListener('load', () => {
+      try {
+        initRecaptcha();
+      } catch (e) {
+        console.error("Recaptcha Init Error:", e);
+      }
     });
 
     function sendOTP() {
-      const phone = document.getElementById("user-phone").value.trim();
       const authMsg = document.getElementById("auth-msg");
-      if (phone.length !== 10) {
-        authMsg.textContent = "Kripya 10-digit mobile number daalein!";
+      const phoneInput = document.getElementById("user-phone");
+      const sendBtn = document.getElementById("send-otp-btn");
+      const phone = phoneInput.value.trim();
+
+      authMsg.textContent = "";
+
+      if (!phone || phone.length !== 10 || isNaN(phone)) {
+        authMsg.style.color = "#ff4757";
+        authMsg.textContent = "Kripya valid 10-digit mobile number daalein!";
         return;
       }
 
       authMsg.style.color = "#38ef7d";
-      authMsg.textContent = "Sending real SMS OTP...";
-      document.getElementById("send-otp-btn").disabled = true;
+      authMsg.textContent = "Sending OTP... Kripya thoda intezar karein";
+      sendBtn.disabled = true;
 
-      const fullPhoneNumber = "+91" + phone;
-      const appVerifier = window.recaptchaVerifier;
+      try {
+        if (!window.recaptchaVerifier) {
+          initRecaptcha();
+        }
 
-      firebase.auth().signInWithPhoneNumber(fullPhoneNumber, appVerifier)
-        .then((result) => {
-          confirmationResult = result;
-          document.getElementById("phone-section").style.display = "none";
-          document.getElementById("otp-section").style.display = "block";
-          authMsg.textContent = "OTP aapke phone par bhej diya gaya hai!";
-        }).catch((error) => {
-          authMsg.style.color = "#ff4757";
-          authMsg.textContent = error.message;
-          document.getElementById("send-otp-btn").disabled = false;
-        });
+        const fullPhoneNumber = "+91" + phone;
+        firebase.auth().signInWithPhoneNumber(fullPhoneNumber, window.recaptchaVerifier)
+          .then((result) => {
+            confirmationResult = result;
+            document.getElementById("phone-section").style.display = "none";
+            document.getElementById("otp-section").style.display = "block";
+            authMsg.style.color = "#38ef7d";
+            authMsg.textContent = "SMS OTP bhej diya gaya hai!";
+          })
+          .catch((error) => {
+            console.error("Firebase Auth Error:", error);
+            authMsg.style.color = "#ff4757";
+            authMsg.textContent = "Error: " + error.message;
+            sendBtn.disabled = false;
+            if (window.grecaptcha && window.recaptchaWidgetId !== undefined) {
+              grecaptcha.reset(window.recaptchaWidgetId);
+            }
+          });
+      } catch (err) {
+        authMsg.style.color = "#ff4757";
+        authMsg.textContent = "App Error: " + err.message;
+        sendBtn.disabled = false;
+      }
     }
 
     function verifyOTP() {
-      const code = document.getElementById("otp-input").value.trim();
       const authMsg = document.getElementById("auth-msg");
+      const code = document.getElementById("otp-input").value.trim();
+      const verifyBtn = document.getElementById("verify-btn");
+
       if (code.length !== 6) {
+        authMsg.style.color = "#ff4757";
         authMsg.textContent = "6-digit OTP daalein!";
         return;
       }
+
+      authMsg.style.color = "#38ef7d";
+      authMsg.textContent = "Verifying OTP...";
+      verifyBtn.disabled = true;
 
       confirmationResult.confirm(code).then((result) => {
         const user = result.user;
         currentUserPhone = user.phoneNumber;
         localStorage.setItem("aviator_real_phone", currentUserPhone);
-        
         socket.emit('auth_phone_verified', { phone: currentUserPhone });
       }).catch((error) => {
         authMsg.style.color = "#ff4757";
-        authMsg.textContent = "Galat OTP! Sahi OTP daalein.";
+        authMsg.textContent = "Galat OTP! Kripya sahi OTP check karein.";
+        verifyBtn.disabled = false;
       });
     }
 
@@ -578,11 +297,11 @@
 
     socket.on('auth_success', (data) => {
       document.getElementById("auth-modal").style.display = "none";
-      document.getElementById("display-user").textContent = "Phone: " + data.phone;
+      document.getElementById("display-user").textContent = "Mob: " + data.phone;
       document.getElementById("balance").textContent = data.balance.toFixed(2);
     });
 
-    /* ================= GAMEPLAY ENGINE ================= */
+    /* ================= CANVAS ENGINE & GAMEPLAY ================= */
     const canvas = document.getElementById("skyCanvas");
     const ctx = canvas.getContext("2d");
     const multLbl = document.getElementById("multiplier-lbl");
@@ -693,4 +412,6 @@
       updateButtonsUI();
     });
 
-    socket.o
+    socket.on('bet_error', (data) => { alert(data.message); });
+
+    socket.on('bets_up
