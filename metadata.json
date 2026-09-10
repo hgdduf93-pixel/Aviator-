@@ -1,0 +1,6 @@
+{
+  "name": "Aviator Crash Game",
+  "description": "Real-time Aviator crash game with liquid glass UI, sound effects, airplane skins, and real-time multiplayer cashouts",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

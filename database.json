@@ -1,0 +1,10 @@
+{
+  "users": [
+    {
+      "id": "user_1789046827591",
+      "username": "testpilot",
+      "password": "$2a$10$NppNS07UoGpZZMsfvQlSI.HgxqTj5Rh6UL2N9ZZKkJC29E841bIDu",
+      "coins": 1000
+    }
+  ]
+}

@@ -4,6 +4,9 @@
   "description": "Real-time Aviator crash game with coin system",
   "main": "server.js",
   "scripts": {
+    "dev": "node server.js",
+    "build": "echo 'Build complete'",
+    "lint": "node --check server.js",
     "start": "node server.js"
   },
   "dependencies": {
