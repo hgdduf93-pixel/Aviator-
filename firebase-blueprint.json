@@ -1,0 +1,108 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with balance, callsign, and equipped skins.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "minLength": 3, "maxLength": 20, "pattern": "^[a-zA-Z0-9_]+$" },
+        "email": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 20 },
+        "coins": { "type": "number" },
+        "unlockedSkins": { "type": "array", "maxLength": 10 },
+        "equippedSkin": { "type": "string", "maxLength": 50 },
+        "isRealAccount": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "username", "coins"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Deposit, withdrawal, or skin purchase ledger entry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "maxLength": 50 },
+        "type": { "type": "string", "maxLength": 30 },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "method": { "type": "string", "maxLength": 50 },
+        "utr": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "maxLength": 20 },
+        "timestamp": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "userId", "type", "amount", "status"]
+    },
+    "Bet": {
+      "title": "Bet",
+      "description": "User flight bet record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "maxLength": 50 },
+        "amount": { "type": "number" },
+        "multiplier": { "type": "number" },
+        "winAmount": { "type": "number" },
+        "status": { "type": "string", "maxLength": 20 },
+        "timestamp": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "userId", "amount", "status"]
+    },
+    "GameRound": {
+      "title": "GameRound",
+      "description": "Historical flight round crash point.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "roundId": { "type": "string", "maxLength": 128 },
+        "crashPoint": { "type": "number" },
+        "mode": { "type": "string", "maxLength": 20 },
+        "timestamp": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "crashPoint", "mode"]
+    },
+    "WithdrawalRequest": {
+      "title": "WithdrawalRequest",
+      "description": "User withdrawal request submitted via UPI",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "maxLength": 50 },
+        "userEmail": { "type": "string", "maxLength": 100 },
+        "upiId": { "type": "string", "maxLength": 100 },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "status": { "type": "string", "maxLength": 20 },
+        "createdAt": { "type": "string", "maxLength": 100 },
+        "timestamp": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "userId", "upiId", "amount", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Primary user profile document"
+    },
+    "/users/{userId}/transactions/{txId}": {
+      "schema": "Transaction",
+      "description": "Sub-collection for user deposits, withdrawals, and skin purchases"
+    },
+    "/users/{userId}/bets/{betId}": {
+      "schema": "Bet",
+      "description": "Sub-collection for user bet history"
+    },
+    "/gameRounds/{roundId}": {
+      "schema": "GameRound",
+      "description": "Public history of flight crash multipliers"
+    },
+    "/withdrawal_requests/{requestId}": {
+      "schema": "WithdrawalRequest",
+      "description": "Collection of all pending and processed user withdrawal requests"
+    }
+  }
+}

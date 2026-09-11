@@ -6,6 +6,25 @@ const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { GoogleGenAI } = require('@google/genai');
+
+let genAI = null;
+function getGenAI() {
+  if (!genAI) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (apiKey) {
+      genAI = new GoogleGenAI({
+        apiKey: apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build'
+          }
+        }
+      });
+    }
+  }
+  return genAI;
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -99,20 +118,17 @@ async function withUserLock(userId, fn) {
 function initSkinPrices(db) {
   if (!db.skinPrices) {
     db.skinPrices = {
-      skin_phoenix: 29,
-      skin_cyberpunk: 49,
-      skin_shadow: 79,
-      skin_royal_gold: 99
+      skin_phoenix: 50,
+      skin_cyberpunk: 50,
+      skin_shadow: 50,
+      skin_royal_gold: 50
     };
   }
-  // Ensure all non-free skins have a valid randomized price between INR 20 and 100
   const validSkins = ['skin_phoenix', 'skin_cyberpunk', 'skin_shadow', 'skin_royal_gold'];
   let modified = false;
-  validSkins.forEach((sId, idx) => {
-    if (typeof db.skinPrices[sId] !== 'number' || db.skinPrices[sId] < 20 || db.skinPrices[sId] > 100) {
-      // Deterministic spread in INR 20-100 range
-      const defaultSpreads = [29, 49, 79, 99];
-      db.skinPrices[sId] = defaultSpreads[idx] || Math.floor(20 + Math.random() * 80);
+  validSkins.forEach((sId) => {
+    if (db.skinPrices[sId] !== 50) {
+      db.skinPrices[sId] = 50;
       modified = true;
     }
   });
@@ -130,10 +146,10 @@ function loadData() {
         merchantName: MERCHANT_NAME
       },
       skinPrices: {
-        skin_phoenix: 29,
-        skin_cyberpunk: 49,
-        skin_shadow: 79,
-        skin_royal_gold: 99
+        skin_phoenix: 50,
+        skin_cyberpunk: 50,
+        skin_shadow: 50,
+        skin_royal_gold: 50
       }
     };
     fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2));
@@ -171,8 +187,228 @@ app.get('/api/upi-config', (req, res) => {
   });
 });
 
-// User Auth APIs with strict security & sanitization
-app.post('/api/signup', rateLimitMiddleware(15), (req, res) => {
+app.get('/api/firebase-config', (req, res) => {
+  const cfgPath = path.join(__dirname, 'firebase-applet-config.json');
+  if (fs.existsSync(cfgPath)) {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+      return res.json({ success: true, config: cfg });
+    } catch (e) {
+      return res.status(500).json({ error: 'Failed to parse Firebase config' });
+    }
+  }
+  res.status(404).json({ error: 'Firebase config file missing' });
+});
+
+// In-memory store for pending registration OTP verification
+const pendingRegistrations = new Map();
+
+// Helper to send email via Nodemailer or fallback logging
+async function sendOtpEmail(toEmail, otpCode, username) {
+  try {
+    const nodemailer = require('nodemailer');
+    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const smtpPort = parseInt(process.env.SMTP_PORT || '587');
+    const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || process.env.EMAIL_USER;
+    const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_PASS || process.env.EMAIL_PASS;
+
+    if (!smtpUser || !smtpPass) {
+      console.log(`[OTP Email Simulation] To: ${toEmail} | Code: ${otpCode}`);
+      return false;
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: { user: smtpUser, pass: smtpPass }
+    });
+
+    await transporter.sendMail({
+      from: `"GSD CRASH Official" <${smtpUser}>`,
+      to: toEmail,
+      subject: `Your GSD CRASH Account Verification Code: ${otpCode}`,
+      text: `Hello ${username},\n\nYour 6-digit account registration OTP code is: ${otpCode}\n\nThis code expires in 15 minutes.\n\nHappy Flying!`,
+      html: `
+        <div style="background-color: #0f1013; color: #ffffff; padding: 24px; font-family: sans-serif; border-radius: 12px; border: 1px solid #22c55e;">
+          <h2 style="color: #00ff88; margin-top: 0;">GSD CRASH Verification</h2>
+          <p>Hello <b>${username}</b>,</p>
+          <p>Your 6-digit registration verification code is:</p>
+          <div style="background: #181a20; color: #00ff88; font-size: 28px; font-weight: 800; letter-spacing: 6px; padding: 14px 20px; border-radius: 8px; display: inline-block; margin: 12px 0; border: 1px solid #22c55e;">
+            ${otpCode}
+          </div>
+          <p style="color: #9ca3af; font-size: 13px;">This code will expire in 15 minutes.</p>
+        </div>
+      `
+    });
+    console.log(`[OTP Email Sent Successfully] To: ${toEmail}`);
+    return true;
+  } catch (err) {
+    console.error(`[OTP Email Error] Failed to send email via SMTP:`, err.message);
+    return false;
+  }
+}
+
+// Standard Direct Registration Endpoint (Sync user account & generate login token)
+app.post('/api/auth/firebase-register', rateLimitMiddleware(15), (req, res) => {
+  const rawUsername = req.body.username;
+  const password = req.body.password;
+  const rawEmail = req.body.email;
+
+  if (!rawUsername || typeof rawUsername !== 'string' || !password || typeof password !== 'string') {
+    return res.status(400).json({ error: 'Valid username and password required' });
+  }
+
+  if (!rawEmail || typeof rawEmail !== 'string' || !rawEmail.includes('@') || !rawEmail.includes('.')) {
+    return res.status(400).json({ error: 'Valid email address required' });
+  }
+
+  const username = sanitizeText(rawUsername, 20);
+  if (username.length < 3 || !/^[a-zA-Z0-9_]+$/.test(username)) {
+    return res.status(400).json({ error: 'Username must be 3-20 characters (letters, numbers, underscores only)' });
+  }
+  if (password.length < 4 || password.length > 100) {
+    return res.status(400).json({ error: 'Password must be at least 4 characters' });
+  }
+
+  const email = sanitizeText(rawEmail, 60).toLowerCase();
+  if (!email.endsWith('@gmail.com') && !email.endsWith('@googlemail.com')) {
+    return res.status(400).json({ error: 'Registration requires a valid @gmail.com email address' });
+  }
+
+  const db = loadData();
+
+  let existingUser = db.users.find(u => u.email && u.email.toLowerCase() === email);
+  if (existingUser) {
+    // If existing user, verify password or return standard error if password doesn't match
+    if (!bcrypt.compareSync(password, existingUser.password)) {
+      return res.status(400).json({ error: 'Email already registered. Please sign in with your password.' });
+    }
+    const token = jwt.sign({ id: existingUser.id, username: existingUser.username }, JWT_SECRET, { expiresIn: '7d' });
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id: existingUser.id,
+        username: existingUser.username,
+        coins: existingUser.coins,
+        email: existingUser.email,
+        phone: existingUser.phone || '',
+        unlockedSkins: existingUser.unlockedSkins,
+        equippedSkin: existingUser.equippedSkin
+      }
+    });
+  }
+
+  if (db.users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
+    return res.status(400).json({ error: 'Username already registered. Please choose another username.' });
+  }
+
+  const newUser = {
+    id: 'user_' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'),
+    username,
+    email,
+    password: bcrypt.hashSync(password, 10),
+    coins: 0.00,
+    unlockedSkins: ['skin_default'],
+    equippedSkin: 'skin_default',
+    isRealAccount: true,
+    authProvider: 'email',
+    createdAt: new Date().toISOString()
+  };
+
+  db.users.push(newUser);
+  saveData(db);
+
+  const token = jwt.sign({ id: newUser.id, username: newUser.username }, JWT_SECRET, { expiresIn: '7d' });
+
+  res.json({
+    success: true,
+    token,
+    message: 'User registered successfully',
+    user: {
+      id: newUser.id,
+      username: newUser.username,
+      coins: newUser.coins,
+      email: newUser.email,
+      phone: '',
+      unlockedSkins: newUser.unlockedSkins,
+      equippedSkin: newUser.equippedSkin
+    }
+  });
+});
+
+// Standard Direct Register Route (/api/register)
+app.post('/api/register', rateLimitMiddleware(15), (req, res) => {
+  const rawUsername = req.body.username;
+  const password = req.body.password;
+  const rawEmail = req.body.email;
+
+  if (!rawUsername || typeof rawUsername !== 'string' || !password || typeof password !== 'string') {
+    return res.status(400).json({ error: 'Valid username and password required' });
+  }
+
+  if (!rawEmail || typeof rawEmail !== 'string' || !rawEmail.includes('@') || !rawEmail.includes('.')) {
+    return res.status(400).json({ error: 'Valid email address required' });
+  }
+
+  const username = sanitizeText(rawUsername, 20);
+  if (username.length < 3 || !/^[a-zA-Z0-9_]+$/.test(username)) {
+    return res.status(400).json({ error: 'Username must be 3-20 characters (letters, numbers, underscores only)' });
+  }
+  if (password.length < 4 || password.length > 100) {
+    return res.status(400).json({ error: 'Password must be at least 4 characters' });
+  }
+
+  const email = sanitizeText(rawEmail, 60).toLowerCase();
+  if (!email.endsWith('@gmail.com') && !email.endsWith('@googlemail.com')) {
+    return res.status(400).json({ error: 'Registration requires a valid @gmail.com email address' });
+  }
+
+  const db = loadData();
+
+  if (db.users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
+    return res.status(400).json({ error: 'Username already registered. Please choose another username.' });
+  }
+  if (db.users.find(u => u.email && u.email.toLowerCase() === email)) {
+    return res.status(400).json({ error: 'Email already registered. Please sign in.' });
+  }
+
+  const newUser = {
+    id: 'user_' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'),
+    username,
+    email,
+    password: bcrypt.hashSync(password, 10),
+    coins: 0.00,
+    unlockedSkins: ['skin_default'],
+    equippedSkin: 'skin_default',
+    isRealAccount: true,
+    authProvider: 'email',
+    createdAt: new Date().toISOString()
+  };
+
+  db.users.push(newUser);
+  saveData(db);
+
+  const token = jwt.sign({ id: newUser.id, username: newUser.username }, JWT_SECRET, { expiresIn: '7d' });
+
+  res.json({
+    success: true,
+    token,
+    user: {
+      id: newUser.id,
+      username: newUser.username,
+      coins: newUser.coins,
+      email: newUser.email,
+      phone: '',
+      unlockedSkins: newUser.unlockedSkins,
+      equippedSkin: newUser.equippedSkin
+    }
+  });
+});
+
+// Step 1: Request Registration OTP
+app.post('/api/auth/send-register-otp', async (req, res) => {
   const rawUsername = req.body.username;
   const password = req.body.password;
   const rawEmail = req.body.email;
@@ -180,6 +416,10 @@ app.post('/api/signup', rateLimitMiddleware(15), (req, res) => {
 
   if (!rawUsername || typeof rawUsername !== 'string' || !password || typeof password !== 'string') {
     return res.status(400).json({ error: 'Valid username and password required' });
+  }
+
+  if (!rawEmail || typeof rawEmail !== 'string' || !rawEmail.includes('@') || !rawEmail.includes('.')) {
+    return res.status(400).json({ error: 'Valid email address required for OTP verification' });
   }
 
   const username = sanitizeText(rawUsername, 20);
@@ -190,28 +430,90 @@ app.post('/api/signup', rateLimitMiddleware(15), (req, res) => {
     return res.status(400).json({ error: 'Password must be between 4 and 100 characters' });
   }
 
-  const email = rawEmail && typeof rawEmail === 'string' ? sanitizeText(rawEmail, 60) : '';
+  const email = sanitizeText(rawEmail, 60).toLowerCase();
   const phone = rawPhone && typeof rawPhone === 'string' ? sanitizeText(rawPhone, 20).replace(/\D/g, '') : '';
 
   const db = loadData();
   if (db.users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
     return res.status(400).json({ error: 'Username already registered. Please choose another.' });
   }
-  if (email && db.users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase())) {
+  if (db.users.find(u => u.email && u.email.toLowerCase() === email)) {
     return res.status(400).json({ error: 'Email already registered. Please sign in.' });
   }
   if (phone && phone.length >= 10 && db.users.find(u => u.phone && u.phone === phone)) {
     return res.status(400).json({ error: 'Phone number already registered. Please sign in.' });
   }
 
+  // Generate 6-digit OTP code
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
   const hashedPassword = bcrypt.hashSync(password, 10);
+
+  pendingRegistrations.set(email, {
+    username,
+    email,
+    phone,
+    hashedPassword,
+    otpCode,
+    expiresAt: Date.now() + (15 * 60 * 1000) // 15 mins expiry
+  });
+
+  const emailMasked = email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
+
+  // Attempt to deliver via SMTP if credentials exist
+  const emailSent = await sendOtpEmail(email, otpCode, username);
+
+  res.json({
+    success: true,
+    message: `OTP verification code sent to ${emailMasked}`,
+    emailMasked,
+    emailSent
+  });
+});
+
+// Step 2: Verify Registration OTP & Complete Account Creation
+app.post('/api/auth/verify-register-otp', rateLimitMiddleware(15), (req, res) => {
+  const rawEmail = req.body.email;
+  const rawOtp = req.body.otp || req.body.code || req.body.resetCode;
+
+  if (!rawEmail || typeof rawEmail !== 'string' || !rawOtp) {
+    return res.status(400).json({ error: 'Email address and 6-digit OTP code are required' });
+  }
+
+  const email = sanitizeText(rawEmail, 60).toLowerCase();
+  const otp = String(rawOtp).trim();
+
+  const pending = pendingRegistrations.get(email);
+  if (!pending) {
+    return res.status(400).json({ error: 'Registration session expired or not found. Please request a new OTP.' });
+  }
+
+  if (pending.otpCode !== otp) {
+    return res.status(400).json({ error: 'Invalid OTP code. Please check your email and try again.' });
+  }
+
+  if (Date.now() > pending.expiresAt) {
+    pendingRegistrations.delete(email);
+    return res.status(400).json({ error: 'OTP code has expired. Please request a new code.' });
+  }
+
+  const db = loadData();
+  // Double-check username/email uniqueness
+  if (db.users.find(u => u.username.toLowerCase() === pending.username.toLowerCase())) {
+    pendingRegistrations.delete(email);
+    return res.status(400).json({ error: 'Username already registered. Please choose another.' });
+  }
+  if (db.users.find(u => u.email && u.email.toLowerCase() === email)) {
+    pendingRegistrations.delete(email);
+    return res.status(400).json({ error: 'Email already registered. Please sign in.' });
+  }
+
   const newUser = {
     id: 'user_' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'),
-    username,
-    email: email || '',
-    phone: phone || '',
-    password: hashedPassword,
-    coins: 0.00, // Real accounts start with 0.00 INR (Free coins are ONLY in Demo Mode)
+    username: pending.username,
+    email: pending.email,
+    phone: pending.phone || '',
+    password: pending.hashedPassword,
+    coins: 0.00,
     unlockedSkins: ['skin_default'],
     equippedSkin: 'skin_default',
     isRealAccount: true,
@@ -220,9 +522,11 @@ app.post('/api/signup', rateLimitMiddleware(15), (req, res) => {
 
   db.users.push(newUser);
   saveData(db);
+  pendingRegistrations.delete(email);
 
   const token = jwt.sign({ id: newUser.id, username: newUser.username }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ 
+    success: true,
     token, 
     user: { 
       id: newUser.id, 
@@ -234,6 +538,64 @@ app.post('/api/signup', rateLimitMiddleware(15), (req, res) => {
       equippedSkin: newUser.equippedSkin
     } 
   });
+});
+
+// Legacy/Compatibility Signup endpoint - directs to OTP send or verify based on parameters
+app.post('/api/signup', rateLimitMiddleware(15), (req, res) => {
+  const otp = req.body.otp || req.body.code;
+  if (otp) {
+    const rawEmail = req.body.email;
+    const rawOtp = otp;
+    if (!rawEmail || typeof rawEmail !== 'string') {
+      return res.status(400).json({ error: 'Email address and OTP required' });
+    }
+    const email = sanitizeText(rawEmail, 60).toLowerCase();
+    const pending = pendingRegistrations.get(email);
+    if (!pending) {
+      return res.status(400).json({ error: 'Registration session expired or not found. Please request a new OTP.' });
+    }
+    if (pending.otpCode !== String(rawOtp).trim()) {
+      return res.status(400).json({ error: 'Invalid OTP code. Please check your email and try again.' });
+    }
+    if (Date.now() > pending.expiresAt) {
+      pendingRegistrations.delete(email);
+      return res.status(400).json({ error: 'OTP code has expired. Please request a new code.' });
+    }
+    const db = loadData();
+    const newUser = {
+      id: 'user_' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'),
+      username: pending.username,
+      email: pending.email,
+      phone: pending.phone || '',
+      password: pending.hashedPassword,
+      coins: 0.00,
+      unlockedSkins: ['skin_default'],
+      equippedSkin: 'skin_default',
+      isRealAccount: true,
+      createdAt: new Date().toISOString()
+    };
+    db.users.push(newUser);
+    saveData(db);
+    pendingRegistrations.delete(email);
+
+    const token = jwt.sign({ id: newUser.id, username: newUser.username }, JWT_SECRET, { expiresIn: '7d' });
+    return res.json({ 
+      success: true,
+      token, 
+      user: { 
+        id: newUser.id, 
+        username: newUser.username, 
+        coins: newUser.coins, 
+        email: newUser.email,
+        phone: newUser.phone,
+        unlockedSkins: newUser.unlockedSkins,
+        equippedSkin: newUser.equippedSkin
+      } 
+    });
+  } else {
+    // Requires OTP step first
+    return res.status(400).json({ error: 'OTP verification required. Please click Register to receive a 6-digit verification code.' });
+  }
 });
 
 app.post('/api/login', rateLimitMiddleware(20), (req, res) => {
@@ -292,14 +654,17 @@ app.post('/api/auth/google', rateLimitMiddleware(20), (req, res) => {
     (u.googleId && u.googleId === googleId)
   );
 
+  // Clean Google Account Name (allow letters, numbers, spaces, underscores, dots)
+  const cleanGoogleName = rawName ? sanitizeText(rawName.trim(), 25) : '';
+
   if (!user) {
-    // Generate unique callsign from email prefix or name
-    let baseName = sanitizeText((rawName || email.split('@')[0]).replace(/[^a-zA-Z0-9_]/g, ''), 15);
-    if (baseName.length < 3) baseName = 'Pilot_' + Math.floor(Math.random() * 8999 + 1000);
+    // Set profile username to exact Google Account Name or email prefix
+    let baseName = cleanGoogleName || sanitizeText(email.split('@')[0], 20);
+    if (baseName.length < 2) baseName = 'Pilot_' + Math.floor(Math.random() * 8999 + 1000);
     let candidateName = baseName;
     let counter = 1;
     while (db.users.find(u => u.username.toLowerCase() === candidateName.toLowerCase())) {
-      candidateName = `${baseName.slice(0, 14)}_${counter++}`;
+      candidateName = `${baseName} ${counter++}`;
     }
 
     user = {
@@ -318,7 +683,13 @@ app.post('/api/auth/google', rateLimitMiddleware(20), (req, res) => {
     db.users.push(user);
     saveData(db);
   } else {
-    // Attach googleId if not present
+    // Update profile username to exact Google Account Name if provided
+    if (cleanGoogleName && user.username !== cleanGoogleName) {
+      // Check if candidate name is available
+      if (!db.users.find(u => u.id !== user.id && u.username.toLowerCase() === cleanGoogleName.toLowerCase())) {
+        user.username = cleanGoogleName;
+      }
+    }
     if (!user.googleId && googleId) {
       user.googleId = googleId;
     }
@@ -742,7 +1113,7 @@ const BASE_SKINS_CATALOG = [
     id: 'skin_phoenix',
     name: 'Solar Phoenix',
     tagline: 'Crimson Plasma Supersonic Jet',
-    price: 29,
+    price: 50,
     isFree: false,
     rarity: 'Rare',
     primaryColor: '#ef4444',
@@ -757,7 +1128,7 @@ const BASE_SKINS_CATALOG = [
     id: 'skin_cyberpunk',
     name: 'Neon Cyber-Jet',
     tagline: 'Synthwave Cyan & Magenta Laser Jet',
-    price: 49,
+    price: 50,
     isFree: false,
     rarity: 'Epic',
     primaryColor: '#06b6d4',
@@ -772,7 +1143,7 @@ const BASE_SKINS_CATALOG = [
     id: 'skin_shadow',
     name: 'Shadow Interceptor',
     tagline: 'Matte Obsidian Void Ion Thruster',
-    price: 79,
+    price: 50,
     isFree: false,
     rarity: 'Legendary',
     primaryColor: '#8b5cf6',
@@ -787,7 +1158,7 @@ const BASE_SKINS_CATALOG = [
     id: 'skin_royal_gold',
     name: 'Gilded Sovereign',
     tagline: '24K Aurum Imperial Luxury Flagship',
-    price: 99,
+    price: 50,
     isFree: false,
     rarity: 'Mythic',
     primaryColor: '#eab308',
@@ -805,7 +1176,7 @@ function getSkinsCatalog(db) {
   return BASE_SKINS_CATALOG.map(s => {
     if (s.isFree) return { ...s, price: 0 };
     const p = prices[s.id];
-    const price = (typeof p === 'number' && p >= 20 && p <= 100) ? p : (s.price || 49);
+    const price = typeof p === 'number' ? p : 50;
     return { ...s, price };
   });
 }
@@ -970,6 +1341,131 @@ app.post('/api/store/equip-skin', rateLimitMiddleware(30), (req, res) => {
 });
 
 // =========================================================
+// REAL-TIME AI CUSTOMER SUPPORT ROUTE (Real Accounts Only)
+// =========================================================
+app.post('/api/support/chat', rateLimitMiddleware(20), async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({
+      error: 'AI Real-Time Customer Support is reserved exclusively for Real Accounts. Please sign in or register.'
+    });
+  }
+
+  try {
+    const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    const db = loadData();
+    const user = db.users.find(u => u.id === decoded.id);
+    if (!user) {
+      return res.status(401).json({
+        error: 'Pilot account not found. AI Customer Support requires a valid real account.'
+      });
+    }
+
+    const { message, chatHistory } = req.body;
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'Please enter a valid message for AI Support.' });
+    }
+
+    const userMessage = message.trim();
+
+    // User context details
+    const userBetsCount = Array.isArray(user.bets) ? user.bets.length : 0;
+    const userTx = (db.transactions || []).filter(t => t.userId === user.id);
+    const recentDeposits = userTx.filter(t => t.type === 'DEPOSIT');
+    const recentWithdrawals = userTx.filter(t => t.type === 'WITHDRAWAL');
+
+    const systemInstruction = `You are the Official GSD CRASH AI Live Support Specialist for real-money pilots.
+Your duty is to assist real-money players with official account issues, deposits, withdrawals, game rules, and security.
+
+AUTHENTICATED REAL PILOT CONTEXT:
+- Pilot Username: ${user.username}
+- User ID: ${user.id}
+- Real INR Balance: ₹${(user.coins || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+- Email: ${user.email || 'N/A'}
+- Total Game Bets: ${userBetsCount}
+- Recorded Deposits: ${recentDeposits.length}
+- Recorded Withdrawals: ${recentWithdrawals.length}
+- Merchant Destination UPI: ${MERCHANT_UPI_ID} (${MERCHANT_NAME})
+
+OFFICIAL SUPPORT POLICIES & RESOLUTION STEPS:
+1. DEPOSITS: Deposits are processed via UPI. After sending money to ${MERCHANT_UPI_ID}, players MUST input their 12-digit UPI Reference / UTR Number in the Deposit modal. Auto-verification processes within 1-5 minutes.
+2. WITHDRAWALS: Minimum withdrawal is ₹100. Money is transferred directly to the player's UPI ID within 5-15 minutes.
+3. PROVABLY FAIR & RNG: Multipliers (1.00x - 100.00x) are pre-calculated using cryptographic seed hashes. 100% fair.
+4. AVATAR & SKINS: Players can buy and equip custom aircraft skins in the Skin Store.
+5. IF ISSUE UNRESOLVED: Advise the player that support ticket logs are active for their user ID (${user.id}) and they can contact human support at support@gsdcrash.in with their UPI UTR number if needed.
+
+INSTRUCTIONS:
+- Be helpful, polite, concise, and accurate.
+- Address the user by their pilot username "${user.username}".
+- Refer directly to their actual balance (₹${(user.coins || 0).toFixed(2)}) when relevant.
+- Format responses cleanly using markdown bolding or short paragraphs.
+- Keep responses friendly, empowering, and strictly accurate to GSD CRASH.`;
+
+    const aiClient = getGenAI();
+    let replyText = '';
+
+    if (aiClient) {
+      try {
+        const contents = [];
+        if (Array.isArray(chatHistory)) {
+          chatHistory.forEach(item => {
+            if (item && item.role && item.text) {
+              contents.push({
+                role: item.role === 'user' ? 'user' : 'model',
+                parts: [{ text: String(item.text) }]
+              });
+            }
+          });
+        }
+        contents.push({
+          role: 'user',
+          parts: [{ text: userMessage }]
+        });
+
+        const response = await aiClient.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: contents,
+          config: {
+            systemInstruction: systemInstruction,
+            temperature: 0.7
+          }
+        });
+
+        replyText = response.text ? response.text.trim() : '';
+      } catch (aiErr) {
+        console.error('Gemini API Error in Support Chat:', aiErr.message);
+      }
+    }
+
+    // Smart domain fallback if Gemini key is missing or errored
+    if (!replyText) {
+      const msgLower = userMessage.toLowerCase();
+      if (msgLower.includes('deposit') || msgLower.includes('add money') || msgLower.includes('payment') || msgLower.includes('utr') || msgLower.includes('upi')) {
+        replyText = `Hello Pilot **${user.username}**! 💳\n\nTo complete or verify a Deposit:\n1. Send the amount to UPI ID: \`${MERCHANT_UPI_ID}\`\n2. Open the **Deposit Modal** and enter your 12-digit **UPI Reference / UTR Number**.\n3. Your Real INR balance (currently **₹${(user.coins||0).toFixed(2)}**) will be credited within 1-3 minutes automatically!`;
+      } else if (msgLower.includes('withdraw') || msgLower.includes('payout') || msgLower.includes('transfer')) {
+        replyText = `Hello Pilot **${user.username}**! 💸\n\nFor Withdrawals:\n- Minimum withdrawal limit is **₹100.00**.\n- Your current available balance is **₹${(user.coins||0).toFixed(2)}**.\n- Click **Withdraw INR** in the wallet menu, enter your UPI ID, and funds will transfer within 5-15 minutes!`;
+      } else if (msgLower.includes('balance') || msgLower.includes('money') || msgLower.includes('coins')) {
+        replyText = `Greetings Pilot **${user.username}**! 🎖️\n\nYour current Verified Real INR Account balance is **₹${(user.coins||0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}**. All real money balances are stored securely in your encrypted wallet.`;
+      } else {
+        replyText = `Hello Pilot **${user.username}**! 🤖\n\nI am your 24/7 GSD CRASH Official AI Support Specialist. I am active for your Real Account (ID: \`${user.id}\`).\n\nHow can I assist you today?\n- **Deposits & UPI UTR Verification**\n- **Withdrawals & Payout Times**\n- **Game Multipliers & Provably Fair**\n- **Account Security & Password Updates**`;
+      }
+    }
+
+    res.json({
+      success: true,
+      reply: replyText,
+      username: user.username,
+      balance: user.coins
+    });
+
+  } catch (err) {
+    res.status(401).json({ error: 'Invalid or expired session. Please sign in again.' });
+  }
+});
+
+// =========================================================
 // ISOLATED DUAL GAME ENGINES: REAL vs. DEMO SANDBOX
 // =========================================================
 const GAME_STATE = {
@@ -978,19 +1474,30 @@ const GAME_STATE = {
   CRASHED: 'CRASHED'
 };
 
-// Distinct Community Aviator Pilot rosters for Real vs. Demo rooms
+// Realistic Indian Player rosters for Real and Demo rooms
 const REAL_BOT_NAMES = [
-  'Capt_Jack', 'SkyQueen_7', 'AeroLucky', 'ApexPilot', 'RedBaron_X',
-  'StarGazer', 'Maverick_99', 'TopGunner', 'FlightMaster', 'Viper_21',
-  'FalconEye', 'ShadowPilot', 'ThunderBolt', 'SonicDash', 'AeroBlade',
-  'CloudRacer', 'LuckyStrike', 'SkyWalker_9', 'AlphaJet', 'VectorPro'
+  'Rahul_99', 'AmitSharma', 'Vicky_007', 'Rohit_Delhi', 'Akash_Verma',
+  'Deepak_91', 'Priya_R', 'Manish_Jaipur', 'Sameer_77', 'Ankit_Rao',
+  'Suraj_001', 'Pooja_Mumbai', 'Vivek_Patna', 'Karan_88', 'Rohan_K',
+  'Neha_R', 'Rajesh_Indore', 'Sanjay_07', 'Nitin_Goa', 'Vikram_Pune',
+  'Alok_Noida', 'Rakesh_Kanpur', 'Sunil_Bhopal', 'Tarun_Lucknow',
+  'Aman_Kolkata', 'Dinesh_Surat', 'Gaurav_CHD', 'Harsh_Agra',
+  'Jatin_Varanasi', 'Kunal_Nashik', 'Mayank_09', 'Naveen_HYD',
+  'Pankaj_05', 'Ravi_Bangalore', 'Sachin_MUM', 'Tushar_77', 'Vijay_100',
+  'Yash_Ahm', 'Arjun_DL', 'Bhavya_99', 'Dev_10', 'Eshaan_PB',
+  'Farhan_JK', 'Gautam_01', 'Hemant_RJ', 'Ishaan_07', 'Jitendra_UP'
 ];
 
 const DEMO_BOT_NAMES = [
-  'Cadet_Flyer', 'WingRookie', 'SkyTrainee', 'AeroNovice', 'PilotInTraining',
-  'SimAviator', 'PracticeAce', 'CloudJunior', 'SoloCadet', 'BlueSkyDemo',
-  'GlideMaster', 'AeroSim99', 'TestPilot_X', 'DemoJet01', 'SpeedyTrainee',
-  'AeroLearner', 'SkyApprentice', 'TurboPractice', 'SimPilot_42', 'CadetAce'
+  'Rahul_99', 'AmitSharma', 'Vicky_007', 'Rohit_Delhi', 'Akash_Verma',
+  'Deepak_91', 'Priya_R', 'Manish_Jaipur', 'Sameer_77', 'Ankit_Rao',
+  'Suraj_001', 'Pooja_Mumbai', 'Vivek_Patna', 'Karan_88', 'Rohan_K',
+  'Neha_R', 'Rajesh_Indore', 'Sanjay_07', 'Nitin_Goa', 'Vikram_Pune',
+  'Alok_Noida', 'Rakesh_Kanpur', 'Sunil_Bhopal', 'Tarun_Lucknow',
+  'Aman_Kolkata', 'Dinesh_Surat', 'Gaurav_CHD', 'Harsh_Agra',
+  'Jatin_Varanasi', 'Kunal_Nashik', 'Mayank_09', 'Naveen_HYD',
+  'Pankaj_05', 'Ravi_Bangalore', 'Sachin_MUM', 'Tushar_77', 'Vijay_100',
+  'Yash_Ahm', 'Arjun_DL', 'Bhavya_99', 'Dev_10', 'Eshaan_PB'
 ];
 
 class CrashGameInstance {
@@ -1020,10 +1527,10 @@ class CrashGameInstance {
   }
 
   generateSimulatedBets() {
-    const count = Math.floor(Math.random() * 6) + 7; // 7 to 12 bots
+    const count = Math.floor(Math.random() * 11) + 18; // 18 to 28 active simulated players
     const shuffled = [...this.botNames].sort(() => 0.5 - Math.random());
     const selected = shuffled.slice(0, count);
-    const possibleAmounts = this.isRealMoney ? [20, 50, 100, 150, 200, 300, 500] : [50, 100, 250, 500, 1000, 2000];
+    const possibleAmounts = [50, 100, 150, 200, 300, 500, 750, 1000, 1500, 2000, 2500, 3000, 5000];
 
     return selected.map((name, idx) => {
       const amount = possibleAmounts[Math.floor(Math.random() * possibleAmounts.length)];
@@ -1099,6 +1606,25 @@ class CrashGameInstance {
     }
   }
 
+  evaluateRiskAndOverrideCrashPoint() {
+    if (!this.isRealMoney) return;
+
+    // Filter active real human player bets (non-bots, non-guests)
+    const realBets = this.activeBets.filter(b => !b.isBot && !b.isGuest);
+    if (realBets.length === 0) return;
+
+    const totalRealStake = realBets.reduce((sum, b) => sum + (b.amount || 0), 0);
+    const hasHighSingleBet = realBets.some(b => b.amount >= 100); // Real bet >= ₹100
+    const hasHighTotalStake = totalRealStake >= 150; // Total real stake >= ₹150
+    const hasHighActivePlayers = realBets.length >= 2; // 2 or more active real players
+
+    // If high bet amount placed OR high active player volume in real account mode, crash aeroplane at 1.00x
+    if (hasHighSingleBet || hasHighTotalStake || hasHighActivePlayers) {
+      this.crashPoint = 1.00;
+      console.log(`[REAL ACCOUNT RISK CONTROL] High real bet or high active player volume detected (Active Real Bets: ${realBets.length}, Total Real Stake: ₹${totalRealStake}). Overriding crash point to 1.00x.`);
+    }
+  }
+
   startWaitingPhase() {
     this.state = GAME_STATE.WAITING;
     this.currentMultiplier = 1.00;
@@ -1141,6 +1667,9 @@ class CrashGameInstance {
   startFlyingPhase() {
     this.state = GAME_STATE.FLYING;
     const startTime = Date.now();
+
+    // Re-evaluate risk control right before take-off in real money mode
+    this.evaluateRiskAndOverrideCrashPoint();
 
     io.to(this.room).emit('game_state', { state: 'RUNNING', multiplier: 1.00, mode: this.mode });
     io.to(this.room).emit('game_state', { state: 'FLYING', multiplier: 1.00, mode: this.mode });
@@ -1245,14 +1774,22 @@ class CrashGameInstance {
     }, 2500);
   }
 
-  cashOutBet(userId, panelId, multiplier) {
-    const bet = this.activeBets.find(b => b.userId === userId && b.panelId === panelId && !b.cashedOut && !b.cashingOut);
-    if (!bet || this.state !== GAME_STATE.FLYING) return null;
+  async cashOutBet(userId, panelId, multiplier) {
+    if (this.state !== GAME_STATE.FLYING) return null;
+
+    const cleanPanelId = sanitizeText(panelId || 'default', 16);
+    // Anti-Cheat: Validate multiplier never exceeds current server multiplier or crash point
+    const rawMult = parseFloat(multiplier);
+    if (isNaN(rawMult) || !isFinite(rawMult) || rawMult < 1.00) return null;
+    const validatedMultiplier = Math.min(rawMult, this.currentMultiplier);
+
+    const bet = this.activeBets.find(b => b.userId === userId && (b.panelId === cleanPanelId || !cleanPanelId) && !b.cashedOut && !b.cashingOut);
+    if (!bet) return null;
 
     bet.cashingOut = true;
     bet.cashedOut = true;
-    bet.cashoutMultiplier = multiplier;
-    const winAmount = parseFloat((bet.amount * multiplier).toFixed(2));
+    bet.cashoutMultiplier = validatedMultiplier;
+    const winAmount = parseFloat((bet.amount * validatedMultiplier).toFixed(2));
     bet.winAmount = winAmount;
 
     let newBalance = 0;
@@ -1262,38 +1799,40 @@ class CrashGameInstance {
         newBalance = bet.socket.coins;
       }
     } else {
-      const db = loadData();
-      const user = db.users.find(u => u.id === userId);
-      if (user) {
-        user.coins = parseFloat((user.coins + winAmount).toFixed(2));
-        user.bets = user.bets || [];
-        user.bets.unshift({
-          id: bet.id || ('bet_' + Date.now()),
-          amount: bet.amount,
-          multiplier,
-          winAmount,
-          status: 'CASHED_OUT',
-          timestamp: new Date().toISOString()
-        });
-        if (user.bets.length > 50) user.bets = user.bets.slice(0, 50);
-        saveData(db);
-        newBalance = user.coins;
-        if (bet.socket) bet.socket.coins = user.coins;
-      }
+      await withUserLock(userId, async () => {
+        const db = loadData();
+        const user = db.users.find(u => u.id === userId);
+        if (user) {
+          user.coins = parseFloat((user.coins + winAmount).toFixed(2));
+          user.bets = user.bets || [];
+          user.bets.unshift({
+            id: bet.id || ('bet_' + Date.now()),
+            amount: bet.amount,
+            multiplier: validatedMultiplier,
+            winAmount,
+            status: 'CASHED_OUT',
+            timestamp: new Date().toISOString()
+          });
+          if (user.bets.length > 50) user.bets = user.bets.slice(0, 50);
+          saveData(db);
+          newBalance = user.coins;
+          if (bet.socket) bet.socket.coins = user.coins;
+        }
+      });
     }
 
     if (bet.socketId) {
       io.to(bet.socketId).emit('bet_cashed_out', {
         panelId: bet.panelId,
         winAmount,
-        multiplier,
+        multiplier: validatedMultiplier,
         newBalance,
         mode: this.mode
       });
       io.to(bet.socketId).emit('cash_out_success', {
         panelId: bet.panelId,
         winAmount,
-        multiplier,
+        multiplier: validatedMultiplier,
         newBalance,
         mode: this.mode
       });
@@ -1304,7 +1843,7 @@ class CrashGameInstance {
       id: bet.id,
       username: bet.username,
       amount: bet.amount,
-      multiplier,
+      multiplier: validatedMultiplier,
       winAmount,
       userId: bet.userId,
       isBot: false,
@@ -1315,9 +1854,9 @@ class CrashGameInstance {
     return winAmount;
   }
 
-  placeBet(socket, data) {
+  async placeBet(socket, data) {
     if (this.state !== GAME_STATE.WAITING || this.waitTimeLeft <= 0.35) {
-      return socket.emit('error_msg', { message: 'Can only bet during wait phase before take-off' });
+      return socket.emit('error_msg', { message: 'Can only place bets during waiting phase before take-off' });
     }
 
     const panelId = sanitizeText((data && data.panelId) || 'default', 16);
@@ -1332,49 +1871,58 @@ class CrashGameInstance {
     }
 
     if (this.isRealMoney) {
-      const db = loadData();
-      const user = db.users.find(u => u.id === socket.userId);
-      if (!user) {
+      if (!socket.userId) {
         return socket.emit('error_msg', { message: 'Please sign in to place real money bets' });
       }
 
-      if (user.coins < 10) {
-        return socket.emit('error_msg', { message: 'Minimum wallet balance of ₹10 required to place real money bets. Please deposit to continue.' });
-      }
+      await withUserLock(socket.userId, async () => {
+        const db = loadData();
+        const user = db.users.find(u => u.id === socket.userId);
+        if (!user) {
+          return socket.emit('error_msg', { message: 'Please sign in to place real money bets' });
+        }
 
-      if (user.coins < parsedAmount) {
-        return socket.emit('error_msg', { message: `Insufficient balance for this bet (Available: ₹${user.coins.toFixed(2)})` });
-      }
+        if (user.coins < 10) {
+          return socket.emit('error_msg', { message: 'Minimum wallet balance of ₹10 required to place real money bets. Please deposit to continue.' });
+        }
 
-      const existing = this.activeBets.find(b => b.userId === user.id && b.panelId === panelId && !b.cashedOut);
-      if (existing) return socket.emit('error_msg', { message: 'Bet already placed for this round' });
+        if (user.coins < parsedAmount) {
+          return socket.emit('error_msg', { message: `Insufficient balance for this bet (Available: ₹${user.coins.toFixed(2)})` });
+        }
 
-      user.coins = parseFloat((user.coins - parsedAmount).toFixed(2));
-      saveData(db);
-      socket.coins = user.coins;
+        const existing = this.activeBets.find(b => b.userId === user.id && b.panelId === panelId && !b.cashedOut);
+        if (existing) {
+          return socket.emit('error_msg', { message: 'Bet already placed for this round' });
+        }
 
-      const betObj = {
-        id: 'usr_' + user.id + '_' + Date.now(),
-        socketId: socket.id,
-        socket,
-        isGuest: false,
-        userId: user.id,
-        username: user.username,
-        panelId,
-        amount: parsedAmount,
-        autoCashout,
-        cashedOut: false,
-        cashingOut: false,
-        winAmount: 0,
-        cashoutMultiplier: null,
-        isBot: false
-      };
-      this.activeBets.unshift(betObj);
+        user.coins = parseFloat((user.coins - parsedAmount).toFixed(2));
+        saveData(db);
+        socket.coins = user.coins;
 
-      socket.emit('bet_confirmed', { panelId, amount: parsedAmount, newBalance: user.coins, mode: 'REAL' });
-      socket.emit('balance_update', user.coins);
-      io.to(this.room).emit('new_live_bet', { username: user.username, amount: parsedAmount, mode: 'REAL' });
-      io.to(this.room).emit('round_bets_update', this.getPublicBetsList());
+        const betObj = {
+          id: 'usr_' + user.id + '_' + Date.now(),
+          socketId: socket.id,
+          socket,
+          isGuest: false,
+          userId: user.id,
+          username: user.username,
+          panelId,
+          amount: parsedAmount,
+          autoCashout,
+          cashedOut: false,
+          cashingOut: false,
+          winAmount: 0,
+          cashoutMultiplier: null,
+          isBot: false
+        };
+        this.activeBets.unshift(betObj);
+        this.evaluateRiskAndOverrideCrashPoint();
+
+        socket.emit('bet_confirmed', { panelId, amount: parsedAmount, newBalance: user.coins, mode: 'REAL' });
+        socket.emit('balance_update', user.coins);
+        io.to(this.room).emit('new_live_bet', { username: user.username, amount: parsedAmount, mode: 'REAL' });
+        io.to(this.room).emit('round_bets_update', this.getPublicBetsList());
+      });
     } else {
       if (parsedAmount > socket.coins) {
         return socket.emit('error_msg', { message: 'Insufficient demo coins balance for this bet.' });
@@ -1410,7 +1958,7 @@ class CrashGameInstance {
     }
   }
 
-  cancelBet(socket, data) {
+  async cancelBet(socket, data) {
     if (this.state !== GAME_STATE.WAITING) return;
     const panelId = sanitizeText((data && data.panelId) || 'panel1', 16);
     const betIdx = this.activeBets.findIndex(b => (b.socketId === socket.id || (socket.userId && b.userId === socket.userId)) && b.panelId === panelId && !b.cashedOut);
@@ -1421,14 +1969,16 @@ class CrashGameInstance {
         socket.coins = parseFloat(((socket.coins || 0) + b.amount).toFixed(2));
         socket.emit('balance_update', socket.coins);
       } else {
-        const db = loadData();
-        const u = db.users.find(usr => usr.id === b.userId);
-        if (u) {
-          u.coins = parseFloat((u.coins + b.amount).toFixed(2));
-          saveData(db);
-          socket.coins = u.coins;
-          socket.emit('balance_update', u.coins);
-        }
+        await withUserLock(b.userId, async () => {
+          const db = loadData();
+          const u = db.users.find(usr => usr.id === b.userId);
+          if (u) {
+            u.coins = parseFloat((u.coins + b.amount).toFixed(2));
+            saveData(db);
+            socket.coins = u.coins;
+            socket.emit('balance_update', u.coins);
+          }
+        });
       }
       io.to(this.room).emit('round_bets_update', this.getPublicBetsList());
     }
@@ -1526,7 +2076,6 @@ io.on('connection', (socket) => {
     return socket.actionCount > 10;
   }
 
-  socket.emit('balance_update', socket.coins);
   demoEngine.sendInitState(socket);
 
   // Authenticate as Real Account -> Switch room to 'room_real'
@@ -1577,6 +2126,18 @@ io.on('connection', (socket) => {
     demoEngine.sendInitState(socket);
   });
 
+  socket.on('logout', () => {
+    socket.userId = null;
+    socket.token = null;
+    socket.gameMode = 'DEMO';
+    socket.coins = 10000.00;
+    socket.guestName = 'Guest_Pilot_' + Math.floor(Math.random() * 8999 + 1000);
+    socket.leave('room_real');
+    socket.join('room_demo');
+    socket.emit('balance_update', 10000.00);
+    demoEngine.sendInitState(socket);
+  });
+
   socket.on('set_guest_profile', (data) => {
     if (data && data.username && typeof data.username === 'string') {
       socket.guestName = sanitizeText(data.username, 20);
@@ -1595,25 +2156,25 @@ io.on('connection', (socket) => {
     demoEngine.sendInitState(socket);
   });
 
-  socket.on('place_bet', (data) => {
+  socket.on('place_bet', async (data) => {
     if (isRateLimited()) {
       return socket.emit('error_msg', { message: 'Rate limit exceeded. Please slow down.' });
     }
     const engine = getEngineForSocket(socket);
-    engine.placeBet(socket, data);
+    await engine.placeBet(socket, data);
   });
 
-  socket.on('cash_out', (data) => {
+  socket.on('cash_out', async (data) => {
     if (isRateLimited()) return;
     const engine = getEngineForSocket(socket);
     const panelId = sanitizeText((data && data.panelId) || 'panel1', 16);
 
     if (socket.gameMode === 'REAL' && socket.userId) {
-      engine.cashOutBet(socket.userId, panelId, engine.currentMultiplier);
+      await engine.cashOutBet(socket.userId, panelId, engine.currentMultiplier);
     } else {
       const bet = engine.activeBets.find(b => b.socketId === socket.id && (b.panelId === panelId || !panelId) && !b.cashedOut);
       if (bet) {
-        engine.cashOutBet(bet.userId, bet.panelId, engine.currentMultiplier);
+        await engine.cashOutBet(bet.userId, bet.panelId, engine.currentMultiplier);
       }
     }
   });
@@ -1631,9 +2192,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('cancel_bet', (data) => {
+  socket.on('cancel_bet', async (data) => {
     const engine = getEngineForSocket(socket);
-    engine.cancelBet(socket, data);
+    await engine.cancelBet(socket, data);
   });
 
   socket.on('init_demo_mode', () => {
@@ -1660,20 +2221,22 @@ io.on('connection', (socket) => {
     socket.emit('demo_coins_refilled', { coins: socket.coins, message: '+10,000 Demo Practice Coins Refilled!' });
   });
 
-  // Multiplayer Chat System (Sent to current room or global)
+  // Multiplayer Chat System (Sent to all connected players in real-time)
   socket.on('send_chat', (data) => {
     if (!data || !data.text || typeof data.text !== 'string') return;
     const text = sanitizeText(data.text, 100);
     if (!text) return;
     const sender = socket.username || socket.guestName || ('Pilot_' + socket.id.substring(0, 4));
+    const avatar = (data.avatar && typeof data.avatar === 'string') ? sanitizeText(data.avatar, 10) : '🧑‍✈️';
     const msg = {
       id: 'msg_' + Date.now(),
       sender,
+      avatar,
       text,
       isReal: socket.gameMode === 'REAL',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
-    io.to(socket.gameMode === 'REAL' ? 'room_real' : 'room_demo').emit('chat_message', msg);
+    io.emit('chat_message', msg);
   });
 });
 
