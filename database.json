@@ -5,6 +5,25 @@
       "username": "testpilot",
       "password": "$2a$10$NppNS07UoGpZZMsfvQlSI.HgxqTj5Rh6UL2N9ZZKkJC29E841bIDu",
       "coins": 1000
+    },
+    {
+      "id": "user_g_mtvqo8yq289226",
+      "username": "Pilot_Google",
+      "email": "hgdduf93@gmail.com",
+      "googleId": "g_1789057550691",
+      "password": "$2a$10$GqmTN287tTG8ADgLhjL0puMrQMOIiHyCcwL5Im7bPPJAofiG.CGq.",
+      "coins": 0,
+      "isRealAccount": true,
+      "authProvider": "google",
+      "createdAt": "2026-09-10T16:25:50.804Z",
+      "unlockedSkins": [
+        "skin_default"
+      ],
+      "equippedSkin": "skin_default"
     }
-  ]
+  ],
+  "settings": {
+    "merchantUpiId": "hgdduf93-3@okhdfcbank",
+    "merchantName": "GSD CRASH Official"
+  }
 }
